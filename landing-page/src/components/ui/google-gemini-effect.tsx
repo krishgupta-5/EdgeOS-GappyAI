@@ -1,6 +1,6 @@
 "use client";
 import { cn } from "@/functions/index";
-import { motion, MotionValue } from "motion/react";
+import { motion, MotionValue } from "framer-motion";
 import React from "react";
 
 const transition = {
@@ -14,7 +14,7 @@ export const GoogleGeminiEffect = ({
   description,
   className,
 }: {
-  pathLengths: MotionValue[];
+  pathLengths: any[];
   title?: string;
   description?: string;
   className?: string;
