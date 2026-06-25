@@ -1,0 +1,17 @@
+node_modules/
+.next/
+dist/
+build/
+.env*
+!.env.example
+.DS_Store
+*.pem
+*.log
+coverage/
+.clerk/
+edge-os-firebase-adminsdk-*.json
+firebase-*.json
+# Keep tracking these if they are safely configured
+!firebase.json
+!firestore.indexes.json
+!firestore.rules
