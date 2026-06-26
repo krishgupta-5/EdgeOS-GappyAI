@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useUser, SignOutButton, useClerk } from "@clerk/nextjs";
 
-// ── Luro Design Tokens ────────────────────────────────────────────────────────
+// ── EdgeOS Design Tokens ──────────────────────────────────────────────────────
 const T = {
   bg: "#09090b",
   surface: "#09090b",

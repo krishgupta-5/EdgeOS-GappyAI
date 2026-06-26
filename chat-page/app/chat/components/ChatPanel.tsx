@@ -15,7 +15,7 @@ import FileContentRenderer from "@/app/chat/components/FileContentRenderer";
 import FileHeader from "@/app/chat/components/FileHeader";
 import InputArea from "@/app/chat/components/InputArea";
 
-// ── Luro Design Tokens ────────────────────────────────────────────────────────
+// ── EdgeOS Design Tokens ──────────────────────────────────────────────────────
 const T = {
   bg: "#09090b",
   surface: "#09090b",
@@ -382,7 +382,7 @@ export default function ChatPanel({
               <circle cx="12" cy="12" r="8" strokeDasharray="4 3" />
               <circle cx="12" cy="12" r="3" fill="#fff" />
             </svg>
-            <span style={{ fontSize: "18px", fontWeight: 700, color: T.text, letterSpacing: "-0.3px", fontFamily: T.font }}>Luro</span>
+            <span style={{ fontSize: "18px", fontWeight: 700, color: T.text, letterSpacing: "-0.3px", fontFamily: T.font }}>EdgeOS</span>
           </div>
         </div>
 
@@ -552,7 +552,7 @@ export default function ChatPanel({
 
                   {/* Role label */}
                   <div style={{ fontSize: "13px", fontWeight: 600, color: msg.role === "user" ? T.textHint : T.textMuted, fontFamily: T.font, marginBottom: "10px", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                    {msg.role === "user" ? displayName.toUpperCase() : "LURO"}
+                    {msg.role === "user" ? displayName.toUpperCase() : "EDGEOS"}
                   </div>
 
                   {/* Tool badges */}
@@ -617,10 +617,10 @@ export default function ChatPanel({
               {/* Typing indicator */}
               {isTyping && (
                 <div style={{ padding: "24px 0" }}>
-                  <div style={{ fontSize: "13px", fontWeight: 600, color: T.textMuted, fontFamily: T.font, marginBottom: "12px", letterSpacing: "0.04em", textTransform: "uppercase" }}>LURO</div>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: T.textMuted, fontFamily: T.font, marginBottom: "12px", letterSpacing: "0.04em", textTransform: "uppercase" }}>EDGEOS</div>
                   <div style={{ display: "flex", gap: "5px", alignItems: "center" }}>
                     {[0, 1, 2].map(i => (
-                      <div key={i} style={{ width: "6px", height: "6px", borderRadius: "50%", background: T.textHint, animation: `lurodot 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+                      <div key={i} style={{ width: "6px", height: "6px", borderRadius: "50%", background: T.textHint, animation: `edgeosdot 1.2s ease-in-out ${i * 0.2}s infinite` }} />
                     ))}
                   </div>
                 </div>
@@ -692,7 +692,7 @@ export default function ChatPanel({
       <style dangerouslySetInnerHTML={{
         __html: `
         #chat-root, #chat-root * { font-family: var(--font-inter), system-ui, -apple-system, sans-serif !important; }
-        @keyframes lurodot { 0%,80%,100%{opacity:0.2;transform:scale(0.8)} 40%{opacity:1;transform:scale(1)} }
+        @keyframes edgeosdot { 0%,80%,100%{opacity:0.2;transform:scale(0.8)} 40%{opacity:1;transform:scale(1)} }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         textarea::placeholder { color: #71717a !important; font-family: var(--font-inter), system-ui, sans-serif !important; }
         ::-webkit-scrollbar { width: 4px; height: 4px; }
