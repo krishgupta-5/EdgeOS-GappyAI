@@ -166,7 +166,10 @@ const Navbar = () => {
                         <div className="items-center flex gap-3 lg:gap-5">
                             <Button 
                                 variant="white" 
-                                onClick={() => window.open("http://localhost:3001/", "_blank")}
+                                onClick={() => {
+                                    const chatUrl = `${window.location.protocol}//${window.location.hostname}:3001`;
+                                    window.location.href = chatUrl;
+                                }}
                                 className="hidden sm:flex group rounded-full px-6 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:-translate-y-0.5"
                             >
                                 Start for free
