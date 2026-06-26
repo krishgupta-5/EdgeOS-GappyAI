@@ -2,12 +2,11 @@ services:
   landing:
     build:
       context: ./landing-page
-    container_name: landing
+    container_name: landing-dev
     working_dir: /app
     volumes:
       - ./landing-page:/app
       - /app/node_modules
-      - /app/.next
     ports:
       - "3000:3000"
     command: npm run dev
@@ -15,12 +14,11 @@ services:
   chat:
     build:
       context: ./chat-page
-    container_name: chat
+    container_name: chat-dev
     working_dir: /app
     volumes:
       - ./chat-page:/app
       - /app/node_modules
-      - /app/.next
     ports:
       - "3001:3000"
     command: npm run dev

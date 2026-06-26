@@ -1,0 +1,16 @@
+services:
+  landing:
+    build:
+      context: ./landing-page
+    container_name: landing
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+
+  chat:
+    build:
+      context: ./chat-page
+    container_name: chat
+    restart: unless-stopped
+    ports:
+      - "3001:3000"

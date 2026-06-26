@@ -4,10 +4,12 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm ci --legacy-peer-deps --loglevel verbose
+RUN npm ci --legacy-peer-deps
 
 COPY . .
 
-EXPOSE 3001
+RUN npm run build
 
-CMD ["npm","run","dev"]
+EXPOSE 3000
+
+CMD ["npm","start"]
