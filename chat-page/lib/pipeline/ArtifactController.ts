@@ -21,7 +21,7 @@ import type {
   TOKEN_BUDGET as TokenBudgetType,
 } from './types';
 import { TOKEN_BUDGET, DEFAULT_MODEL, REQUEST_TIMEOUT_MS, ACTIVEPIECES_TIMEOUT_MS } from './types';
-import { getDownstreamDependents } from './DependencyResolver';
+import { getDownstreamDependents, getMissingDependencies } from './DependencyResolver';
 import { buildContext, buildConfigContext, getStackSummary } from './ContextBuilder';
 import {
   buildPromptMessages,
@@ -193,7 +193,30 @@ export async function generateArtifact(
   artifact: GeneratedArtifact;
   tokensUsed: number;
 } | null> {
+  let tokensUsedTotal = 0;
   const startTime = Date.now();
+
+  // Explicitly generate missing dependencies before continuing
+  if (mode === 'generate' && artifactType !== 'config') {
+    const generatedSet = new Set(Object.keys(state.artifacts) as ArtifactType[]);
+    const missingDeps = getMissingDependencies(artifactType, generatedSet);
+    
+    if (missingDeps.length > 0) {
+      log.info(`Detected missing dependencies for ${artifactType}, explicitly generating them`, { missingDeps });
+      for (const dep of missingDeps) {
+        log.info(`Explicitly generating missing dependency: ${dep}`);
+        if (dep === 'db') {
+          await generateDbSchema(state, userPrompt);
+        } else {
+          const result = await generateArtifact(dep, state, userPrompt, fallbackApiKey, 'generate');
+          if (result) {
+            tokensUsedTotal += result.tokensUsed;
+          }
+        }
+      }
+    }
+  }
+
   const apiKey = getApiKey(artifactType, fallbackApiKey);
   const temperature = getTemperature(artifactType);
   const maxTokens = TOKEN_BUDGET[artifactType] || 2000;
@@ -357,9 +380,10 @@ ${promptStr}
 
   console.log(debugLog);
 
+  tokensUsedTotal += groqResult.usage.totalTokens;
   return {
     artifact: generatedArtifact,
-    tokensUsed: groqResult.usage.totalTokens,
+    tokensUsed: tokensUsedTotal,
   };
 }
 
