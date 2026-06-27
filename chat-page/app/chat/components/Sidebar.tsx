@@ -14,7 +14,10 @@ import {
   Search02Icon,
   Settings01Icon,
   UserCircleIcon,
-  Menu01Icon
+  Menu01Icon,
+  PlugSocketIcon,
+  MoreIcon,
+  PinIcon
 } from "hugeicons-react";
 
 interface SidebarProps {
@@ -138,6 +141,8 @@ function SearchModal({ userSessions, onClose, onNavigate, leftOffset }: {
   );
 }
 
+
+
 function Toast({ message, onDone }: { message: string; onDone: () => void; }) {
   useEffect(() => { const t = setTimeout(onDone, 3000); return () => clearTimeout(t); }, [onDone]);
   return (
@@ -147,8 +152,9 @@ function Toast({ message, onDone }: { message: string; onDone: () => void; }) {
   );
 }
 
-function SessionContextMenu({ visible, x, y, sessionId, sessionTitle, onRename, onExport, onDelete, menuRef }: {
-  visible: boolean; x: number; y: number; sessionId: string; sessionTitle: string;
+function SessionContextMenu({ visible, x, y, sessionId, sessionTitle, isPinned, onTogglePin, onRename, onExport, onDelete, menuRef }: {
+  visible: boolean; x: number; y: number; sessionId: string; sessionTitle: string; isPinned: boolean;
+  onTogglePin: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onExport: (id: string) => void;
   onDelete: (id: string) => void;
@@ -157,11 +163,16 @@ function SessionContextMenu({ visible, x, y, sessionId, sessionTitle, onRename, 
   if (!visible) return null;
   const btn: CSSProperties = { width: "100%", padding: "8px 12px", background: "transparent", border: "none", color: T.textMuted, fontSize: "13px", fontWeight: 500, fontFamily: T.font, textAlign: "left", cursor: "pointer", borderRadius: "6px", transition: "all .12s", display: "block" };
   return (
-    <div ref={menuRef} style={{ position: "fixed", left: x, top: y, background: "#121214", border: `1px solid rgba(255,255,255,0.15)`, borderRadius: "10px", padding: "6px", zIndex: 1000, minWidth: "160px", boxShadow: "0 12px 32px rgba(0,0,0,0.9)", fontFamily: T.font }}>
+    <div ref={menuRef} style={{ position: "fixed", left: x, top: y, background: "#121214", border: `1px solid rgba(255,255,255,0.15)`, borderRadius: "10px", padding: "6px", zIndex: 5000, minWidth: "160px", boxShadow: "0 12px 32px rgba(0,0,0,0.9)", fontFamily: T.font }}>
+      <button onClick={() => onTogglePin(sessionId)} style={btn}
+        onMouseEnter={e => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.color = T.text; }}
+        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.textMuted; }}>
+        {isPinned ? "Unpin" : "Pin"}
+      </button>
       <button onClick={() => onRename(sessionId, sessionTitle)} style={btn}
         onMouseEnter={e => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.color = T.text; }}
         onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.textMuted; }}>
-        Rename
+        Edit
       </button>
       <button onClick={() => onExport(sessionId)} style={btn}
         onMouseEnter={e => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.color = T.text; }}
@@ -226,54 +237,78 @@ function SidebarLink({ icon, label, onClick, isOpen, isHighlight, className }: {
   );
 }
 
-function HistoryItem({ sessionId, title, isOpen, active = false, onNavigate, onContextMenu }: {
-  sessionId: string; title: string; isOpen: boolean; active?: boolean;
+function HistoryItem({ sessionId, title, isOpen, active = false, isPinned = false, onNavigate, onOptionsClick, onTogglePin }: {
+  sessionId: string; title: string; isOpen: boolean; active?: boolean; isPinned?: boolean;
   onNavigate?: (id: string) => void;
-  onContextMenu?: (e: React.MouseEvent, id: string, title: string) => void;
+  onOptionsClick?: (e: React.MouseEvent, id: string, title: string) => void;
+  onTogglePin?: (e: React.MouseEvent, id: string) => void;
 }) {
+  const [isHovered, setIsHovered] = React.useState(false);
   return (
-    <button
-      onClick={() => onNavigate?.(sessionId)}
-      onContextMenu={e => onContextMenu?.(e, sessionId, title)}
+    <div
       style={{ 
         width: "100%", padding: "10px", marginBottom: "2px", 
         background: active ? "rgba(255,255,255,0.06)" : "transparent", border: "none", 
         borderRadius: "8px", color: active ? T.text : T.textMuted, fontSize: "13px", 
-        fontFamily: T.font, textAlign: "left", cursor: "pointer", display: "flex", 
+        fontFamily: T.font, textAlign: "left", display: "flex", 
         alignItems: "center", gap: "10px", transition: "all .15s", overflow: "hidden" 
       }}
-      onMouseEnter={e => { if (!active) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; e.currentTarget.style.color = T.text; } }}
-      onMouseLeave={e => { if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.textMuted; } }}>
+      onMouseEnter={e => { setIsHovered(true); if (!active) { e.currentTarget.style.background = "rgba(255,255,255,0.03)"; e.currentTarget.style.color = T.text; } }}
+      onMouseLeave={e => { setIsHovered(false); if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.textMuted; } }}>
       
-      <div style={{ width: "20px", height: "20px", flexShrink: 0, borderRadius: "4px", background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: 700, color: T.textHint }}>
-        {title.charAt(0).toUpperCase()}
-      </div>
+      <button 
+        onClick={() => onNavigate?.(sessionId)}
+        style={{ flex: 1, background: "transparent", border: "none", padding: 0, margin: 0, textAlign: "left", cursor: "pointer", color: "inherit", outline: "none", display: "flex", alignItems: "center" }}>
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div 
+              initial={{ opacity: 0, width: 0, marginLeft: 0 }}
+              animate={{ opacity: 1, width: "auto", marginLeft: 4 }}
+              exit={{ opacity: 0, width: 0, marginLeft: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              style={{ lineHeight: "1.4", fontWeight: 500, whiteSpace: "normal", wordBreak: "break-word" }}
+            >
+              {title}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </button>
 
-      <AnimatePresence>
-        {isOpen && (
-          <motion.span 
-            initial={{ opacity: 0, width: 0, marginLeft: 0 }}
-            animate={{ opacity: 1, width: "auto", marginLeft: 4 }}
-            exit={{ opacity: 0, width: 0, marginLeft: 0 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
-            style={{ lineHeight: "1.4", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+      {isOpen && (
+        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          {(isPinned || isHovered) && (
+            <button 
+              onClick={e => { e.stopPropagation(); onTogglePin?.(e, sessionId); }}
+              style={{ flexShrink: 0, background: "transparent", border: "none", color: isPinned ? T.text : T.textMuted, cursor: "pointer", padding: "4px", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center" }}
+              onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              title={isPinned ? "Unpin" : "Pin"}
+            >
+              <PinIcon size={14} fill={isPinned ? "currentColor" : "none"} />
+            </button>
+          )}
+          <button 
+            onClick={e => { e.stopPropagation(); onOptionsClick?.(e, sessionId, title); }}
+            style={{ flexShrink: 0, background: "transparent", border: "none", color: T.textMuted, cursor: "pointer", padding: "4px", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center" }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
+            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
           >
-            {title}
-          </motion.span>
-        )}
-      </AnimatePresence>
-    </button>
+            <MoreIcon size={16} />
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
-export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, onToggle, sidebarWidth = 280, showLoginModal, onShowLoginModal }: SidebarProps) {
+export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, onToggle, sidebarWidth = 280, onResize, showLoginModal, onShowLoginModal }: SidebarProps) {
   const router = useRouter();
   const { user, isSignedIn, isLoaded } = useUser();
-  const [isHovered, setIsHovered] = useState(false);
 
   const [cachedImageUrl, setCachedImageUrl] = useState<string | null>(null);
   const [cachedDisplayName, setCachedDisplayName] = useState<string>("User");
   const [cachedEmail, setCachedEmail] = useState<string | null>(null);
+  const [pinnedSessions, setPinnedSessions] = useState<string[]>([]);
 
   const useIsomorphicLayoutEffect = typeof window !== "undefined" ? React.useLayoutEffect : useEffect;
 
@@ -285,6 +320,10 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
       if (name) setCachedDisplayName(name);
       const email = localStorage.getItem("edge-os-user-email");
       if (email) setCachedEmail(email);
+      try {
+        const p = localStorage.getItem("edge-os-pinned-sessions");
+        if (p) setPinnedSessions(JSON.parse(p));
+      } catch (e) {}
     }
   }, []);
 
@@ -320,7 +359,9 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
   const [contextMenu, setContextMenu] = useState<{ visible: boolean; x: number; y: number; sessionId: string; sessionTitle: string; } | null>(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
-  const expanded = isOpen || isHovered || profileMenuOpen || (contextMenu !== null);
+  const [isPinnedCollapsed, setIsPinnedCollapsed] = useState(false);
+  const [isRecentCollapsed, setIsRecentCollapsed] = useState(false);
+  const expanded = isOpen || profileMenuOpen || (contextMenu !== null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -354,6 +395,15 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
     setLoading(true);
     try { const r = await fetch("/api/sessions", { credentials: "include", cache: "no-store" }); if (r.ok) setUserSessions((await r.json()).sessions || []); }
     catch (e) { console.error(e); } finally { setLoading(false); }
+  };
+
+  const handleTogglePin = (id: string) => {
+    setPinnedSessions(prev => {
+      const newPins = prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id];
+      localStorage.setItem("edge-os-pinned-sessions", JSON.stringify(newPins));
+      return newPins;
+    });
+    setContextMenu(null);
   };
 
   const handleDeleteSession = async (id: string) => {
@@ -395,15 +445,25 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
     try { router.push(`/chat/${resetSessionId()}`); } catch (e) { console.error(e); }
   };
 
+  const { pinnedSessionsList, recentSessionsList } = useMemo(() => {
+    const pinned = userSessions.filter(s => pinnedSessions.includes(s.sessionId));
+    const unpinned = userSessions.filter(s => !pinnedSessions.includes(s.sessionId));
+    return { pinnedSessionsList: pinned, recentSessionsList: unpinned };
+  }, [userSessions, pinnedSessions]);
+
   return (
     <>
       {renameModal && <RenameModal currentTitle={renameModal.currentTitle} onSave={v => handleRenameSave(renameModal.sessionId, v)} onCancel={() => setRenameModal(null)} />}
       {isSearchModalOpen && <SearchModal userSessions={userSessions} onClose={() => setIsSearchModalOpen(false)} onNavigate={id => router.push(`/chat/${id}`)} leftOffset={isOpen ? sidebarWidth : 68} />}
       {toast && <Toast message={toast} onDone={() => setToast(null)} />}
 
+      <SessionContextMenu visible={contextMenu?.visible ?? false} x={contextMenu?.x ?? 0} y={contextMenu?.y ?? 0}
+        sessionId={contextMenu?.sessionId ?? ""} sessionTitle={contextMenu?.sessionTitle ?? ""}
+        isPinned={contextMenu ? pinnedSessions.includes(contextMenu.sessionId) : false}
+        onTogglePin={handleTogglePin}
+        onRename={handleRenameSession} onExport={handleExportSession} onDelete={handleDeleteSession} menuRef={contextMenuRef} />
+
       <motion.aside
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
         className={satoshi.variable}
         initial={{ width: expanded ? sidebarWidth : 68 }}
         animate={{ width: expanded ? sidebarWidth : 68 }}
@@ -437,7 +497,6 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "0 14px", width: "100%" }}>
           <SidebarLink 
             isOpen={expanded}
-            isHighlight={true}
             onClick={handleNewChat}
             icon={<PlusSignIcon size={18} strokeWidth={2.5} />}
             label="New Project"
@@ -447,6 +506,12 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
             onClick={() => setIsSearchModalOpen(true)}
             icon={<Search02Icon size={18} strokeWidth={2.5} />}
             label="Search projects..."
+          />
+          <SidebarLink 
+            isOpen={expanded}
+            onClick={() => router.push('/integrations')}
+            icon={<PlugSocketIcon size={18} strokeWidth={2.5} />}
+            label="Integrations"
           />
         </div>
 
@@ -460,17 +525,78 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
             <AnimatePresence>
               {expanded && <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} style={{ padding: "16px 10px", color: T.textHint, fontSize: "13px", fontFamily: T.font }}>Log in to view workspace</motion.div>}
             </AnimatePresence>
-          ) : userSessions.length > 0 ? (
-            userSessions.map(s => (
-              <HistoryItem 
-                key={s.sessionId} 
-                sessionId={s.sessionId}
-                title={s.lastMessage || `Session · ${s.messageCount} messages`}
-                isOpen={expanded}
-                onNavigate={id => router.push(`/chat/${id}`)}
-                onContextMenu={(e, id, title) => { e.preventDefault(); const { x, y } = clampPos(e.clientX, e.clientY); setContextMenu({ visible: true, x, y, sessionId: id, sessionTitle: title }); }} 
-              />
-            ))
+          ) : (pinnedSessionsList.length > 0 || recentSessionsList.length > 0) ? (
+            <>
+              {pinnedSessionsList.length > 0 && (
+                <div style={{ marginBottom: "16px" }}>
+                  {expanded && (
+                    <div 
+                      onClick={() => setIsPinnedCollapsed(!isPinnedCollapsed)}
+                      style={{ fontSize: "11px", fontWeight: 600, color: T.textHint, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px", paddingLeft: "4px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none" }}
+                    >
+                      Pinned
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isPinnedCollapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </div>
+                  )}
+                  <AnimatePresence>
+                    {!isPinnedCollapsed && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: "hidden" }}>
+                        {pinnedSessionsList.map(s => (
+                          <HistoryItem 
+                            key={s.sessionId} 
+                            sessionId={s.sessionId}
+                            title={s.lastMessage || `Session · ${s.messageCount} messages`}
+                            isOpen={expanded}
+                            active={activeAgentId === s.sessionId}
+                            isPinned={true}
+                            onNavigate={id => router.push(`/chat/${id}`)}
+                            onOptionsClick={(e, id, title) => { e.preventDefault(); const { x, y } = clampPos(e.clientX, e.clientY); setContextMenu({ visible: true, x, y, sessionId: id, sessionTitle: title }); }} 
+                            onTogglePin={(e, id) => { e.preventDefault(); handleTogglePin(id); }}
+                          />
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
+              {recentSessionsList.length > 0 && (
+                <div style={{ marginBottom: "16px" }}>
+                  {expanded && (
+                    <div 
+                      onClick={() => setIsRecentCollapsed(!isRecentCollapsed)}
+                      style={{ fontSize: "11px", fontWeight: 600, color: T.textHint, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px", paddingLeft: "4px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none" }}
+                    >
+                      Recent
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isRecentCollapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </div>
+                  )}
+                  <AnimatePresence>
+                    {!isRecentCollapsed && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: "hidden" }}>
+                        {recentSessionsList.map(s => (
+                          <HistoryItem 
+                            key={s.sessionId} 
+                            sessionId={s.sessionId}
+                            title={s.lastMessage || `Session · ${s.messageCount} messages`}
+                            isOpen={expanded}
+                            active={activeAgentId === s.sessionId}
+                            isPinned={false}
+                            onNavigate={id => router.push(`/chat/${id}`)}
+                            onOptionsClick={(e, id, title) => { e.preventDefault(); const { x, y } = clampPos(e.clientX, e.clientY); setContextMenu({ visible: true, x, y, sessionId: id, sessionTitle: title }); }} 
+                            onTogglePin={(e, id) => { e.preventDefault(); handleTogglePin(id); }}
+                          />
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </>
           ) : (
             <AnimatePresence>
               {expanded && <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} style={{ padding: "16px 10px", color: T.textHint, fontSize: "13px", fontFamily: T.font }}>No recent projects</motion.div>}
@@ -569,11 +695,27 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
           )}
         </div>
 
-        <SessionContextMenu visible={contextMenu?.visible ?? false} x={contextMenu?.x ?? 0} y={contextMenu?.y ?? 0}
-          sessionId={contextMenu?.sessionId ?? ""} sessionTitle={contextMenu?.sessionTitle ?? ""}
-          onRename={handleRenameSession} onExport={handleExportSession} onDelete={handleDeleteSession} menuRef={contextMenuRef} />
 
         <style dangerouslySetInnerHTML={{ __html: `aside *{font-family:var(--font-satoshi),system-ui,sans-serif!important}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px}::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2)}input::placeholder{color:#71717a!important}` }} />
+        
+        {/* Resize Handle */}
+        {onResize && (
+          <div
+            onMouseDown={onResize}
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              width: "4px",
+              height: "100%",
+              cursor: "col-resize",
+              zIndex: 10,
+              background: "transparent",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+          />
+        )}
       </motion.aside>
     </>
   );

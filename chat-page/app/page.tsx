@@ -15,6 +15,7 @@ const agentNames: Record<string, string> = {
 export default function Home() {
   const [activeAgentId, setActiveAgentId] = useState("1");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(260);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   const handleLoginModalClose = () => {
@@ -23,6 +24,46 @@ export default function Home() {
 
   const handleLoginRedirect = () => {
     window.location.href = "/login";
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+
+    let rafId: number;
+    let lastWidth = sidebarWidth;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      moveEvent.preventDefault();
+
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+
+      rafId = requestAnimationFrame(() => {
+        const newWidth = moveEvent.clientX;
+        if (newWidth >= 200 && newWidth <= 500 && newWidth !== lastWidth) {
+          lastWidth = newWidth;
+          setSidebarWidth(newWidth);
+        }
+      });
+    };
+
+    const handleMouseUp = () => {
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
   };
 
   return (
@@ -49,6 +90,8 @@ export default function Home() {
             onSelectAgent={setActiveAgentId}
             isOpen={isSidebarOpen}
             onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+            sidebarWidth={sidebarWidth}
+            onResize={handleMouseDown}
             showLoginModal={showLoginModal}
             onShowLoginModal={setShowLoginModal}
           />
