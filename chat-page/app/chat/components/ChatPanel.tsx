@@ -375,7 +375,11 @@ export default function ChatPanel({
     setModifyMode(false); setModifyTargetArtifact(null);
     try {
       const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: textToSend, sessionId: currentSessionId, artifact, mode: isModify ? "modify" : "generate" }) });
-      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      if (!res.ok) {
+        let errMsg = `API error: ${res.status}`;
+        try { const errBody = await res.json(); if (errBody.error) errMsg = errBody.error; if (errBody.code) errMsg += ` [${errBody.code}]`; } catch {}
+        throw new Error(errMsg);
+      }
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       const quotaRes = await fetch("/api/token-quota");
