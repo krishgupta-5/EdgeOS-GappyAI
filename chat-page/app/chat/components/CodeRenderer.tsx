@@ -2,9 +2,21 @@
 
 import React from "react";
 
+// ── Aceternity / Vercel Code Theme Tokens ──────────
+const C = {
+  keyword: "#c678dd", // Pink/Purple (import, const, true/false)
+  function: "#61afef", // Blue (useState, names)
+  string: "#98c379", // Green (Strings)
+  number: "#d19a66", // Amber (Numbers)
+  punctuation: "#abb2bf", // Gray (Brackets, colons)
+  text: "#e4e4e7", // White/Off-white (Variables, generic text)
+  comment: "#5c6370", // Dim italic (Comments)
+  lineNumber: "#3f3f46", // Dark gray for the line numbers
+};
+
 interface CodeRendererProps {
   content: string;
-  language?: string; // Added language prop to detect YAML
+  language?: string;
 }
 
 export default function CodeRenderer({
@@ -14,203 +26,172 @@ export default function CodeRenderer({
   const isYaml =
     language.toLowerCase() === "yaml" || language.toLowerCase() === "yml";
 
+  // Helper to render the Aceternity-style line row
+  const renderRow = (index: number, children: React.ReactNode) => (
+    <div
+      key={index}
+      style={{
+        display: "flex",
+        minHeight: "24px",
+        lineHeight: "24px",
+        fontFamily: '"Geist Mono", monospace',
+        fontWeight: 400,
+        fontSize: "14px",
+      }}
+    >
+      {/* Line Number */}
+      <div
+        style={{
+          width: "48px",
+          flexShrink: 0,
+          textAlign: "right",
+          paddingRight: "16px",
+          color: C.lineNumber,
+          userSelect: "none",
+          fontSize: "13px",
+          boxSizing: "border-box",
+        }}
+      >
+        {index + 1}
+      </div>
+      {/* Code Content */}
+      <div style={{ flex: 1, whiteSpace: "pre-wrap", wordBreak: "break-word", paddingRight: "16px" }}>
+        {children}
+      </div>
+    </div>
+  );
+
   // ─────────────────────────────────────────────
   // YAML SPECIFIC HIGHLIGHTER
   // ─────────────────────────────────────────────
   if (isYaml) {
-    return (content ?? "").split("\n").map((line, i) => {
+    return (content ?? "").trimEnd().split("\n").map((line, i) => {
       const trimmedLine = line.trim();
 
       // Comments
       if (trimmedLine.startsWith("#")) {
-        return (
-          <div key={i} style={{ minHeight: "19px" }}>
+        return renderRow(
+          i,
+          <>
             <span style={{ whiteSpace: "pre" }}>{line.match(/^\s*/)?.[0]}</span>
-            <span style={{ color: "#71717A", fontStyle: "italic" }}>
-              {trimmedLine}
-            </span>
-          </div>
+            <span style={{ color: C.comment, fontStyle: "italic" }}>{trimmedLine}</span>
+          </>
         );
       }
 
-      // Key-Value Pairs (e.g., "version: '3.8'" or "  backend:")
+      // Key-Value Pairs
       const kvMatch = line.match(/^(\s*)([a-zA-Z0-9_.-]+)(\s*:)(.*)$/);
       if (kvMatch) {
         const [, indent, key, colon, value] = kvMatch;
-        return (
-          <div key={i} style={{ minHeight: "19px" }}>
+        return renderRow(
+          i,
+          <>
             <span style={{ whiteSpace: "pre" }}>{indent}</span>
-            <span style={{ color: "#60A5FA", fontWeight: 600 }}>{key}</span>
-            <span style={{ color: "#52525B" }}>{colon}</span>
+            <span style={{ color: C.function, fontWeight: 500 }}>{key}</span>
+            <span style={{ color: C.punctuation }}>{colon}</span>
             {colorizeYamlValue(value)}
-          </div>
+          </>
         );
       }
 
-      // Array items (e.g., "- ./app" or "- '8000:8000'")
+      // Array items
       const arrayMatch = line.match(/^(\s*-\s+)(.*)$/);
       if (arrayMatch) {
         const [, dashMatch, value] = arrayMatch;
-        return (
-          <div key={i} style={{ minHeight: "19px" }}>
-            <span
-              style={{ whiteSpace: "pre", color: "#52525B", fontWeight: 700 }}
-            >
-              {dashMatch}
-            </span>
+        return renderRow(
+          i,
+          <>
+            <span style={{ color: C.punctuation, fontWeight: 700, whiteSpace: "pre" }}>{dashMatch}</span>
             {colorizeYamlValue(value)}
-          </div>
+          </>
         );
       }
 
       // Fallback for unparsed lines
-      return (
-        <div key={i} style={{ minHeight: "19px" }}>
-          <span style={{ color: "#D4D4D8" }}>{line}</span>
-        </div>
-      );
+      return renderRow(i, <span style={{ color: C.text, whiteSpace: "pre" }}>{line}</span>);
     });
   }
 
   // ─────────────────────────────────────────────
-  // GENERAL / JS HIGHLIGHTER (Your original logic)
+  // GENERAL / JS HIGHLIGHTER
   // ─────────────────────────────────────────────
   const keywords = [
-    "import",
-    "from",
-    "const",
-    "let",
-    "var",
-    "export",
-    "default",
-    "function",
-    "return",
-    "type",
-    "interface",
-    "if",
-    "else",
-    "for",
-    "while",
-    "def",
-    "class",
-    "async",
-    "await",
-    "true",
-    "false",
+    "import", "from", "const", "let", "var", "export", "default",
+    "function", "return", "type", "interface", "if", "else", "for",
+    "while", "def", "class", "async", "await", "true", "false",
   ];
   const types = [
-    "string",
-    "number",
-    "boolean",
-    "any",
-    "void",
-    "React",
-    "useState",
-    "useEffect",
+    "string", "number", "boolean", "any", "void", "React",
+    "useState", "useEffect", "useCallback",
   ];
 
-  return (content ?? "").split("\n").map((line, i) => {
+  return (content ?? "").trimEnd().split("\n").map((line, i) => {
     const trimmedLine = line.trim();
-    if (trimmedLine.startsWith("#") || trimmedLine.startsWith("//"))
-      return (
-        <div key={i} style={{ minHeight: "19px" }}>
+
+    // Comments
+    if (trimmedLine.startsWith("#") || trimmedLine.startsWith("//")) {
+      return renderRow(
+        i,
+        <>
           <span style={{ whiteSpace: "pre" }}>{line.match(/^\s*/)?.[0]}</span>
-          <span style={{ color: "#71717A", fontStyle: "italic" }}>
-            {trimmedLine}
-          </span>
-        </div>
+          <span style={{ color: C.comment, fontStyle: "italic" }}>{trimmedLine}</span>
+        </>
       );
+    }
+
     const tokens = line.split(/(\s+|[:{}()[\],;."']|(?<=")|(?='))/);
-    return (
-      <div key={i} style={{ minHeight: "19px" }}>
+
+    return renderRow(
+      i,
+      <>
         {tokens.map((token, j) => {
           if (!token) return null;
           const trimmed = token.trim();
+
           if (keywords.includes(trimmed))
-            return (
-              <span key={j} style={{ color: "#F472B6", fontWeight: 500 }}>
-                {token}
-              </span>
-            );
+            return <span key={j} style={{ color: C.keyword, fontWeight: 500 }}>{token}</span>;
+
           if (types.includes(trimmed))
-            return (
-              <span key={j} style={{ color: "#60A5FA" }}>
-                {token}
-              </span>
-            );
+            return <span key={j} style={{ color: C.function }}>{token}</span>;
+
           if (!isNaN(Number(trimmed)) && trimmed !== "")
-            return (
-              <span key={j} style={{ color: "#FBBF24" }}>
-                {token}
-              </span>
-            );
-          if (
-            token.startsWith('"') ||
-            token.startsWith("'") ||
-            token.endsWith('"') ||
-            token.endsWith("'")
-          )
-            return (
-              <span key={j} style={{ color: "#34D399" }}>
-                {token}
-              </span>
-            );
+            return <span key={j} style={{ color: C.number }}>{token}</span>;
+
+          if (token.startsWith('"') || token.startsWith("'") || token.endsWith('"') || token.endsWith("'"))
+            return <span key={j} style={{ color: C.string }}>{token}</span>;
+
           const nextToken = tokens[j + 1]?.trim() ?? "";
-          const nextActualToken =
-            tokens.slice(j + 1).find((t) => t.trim() !== "") ?? "";
+          const nextActualToken = tokens.slice(j + 1).find((t) => t.trim() !== "") ?? "";
+
+          // Function calls / declarations
           if (/^[a-zA-Z_]\w*$/.test(trimmed) && nextToken === "(")
-            return (
-              <span key={j} style={{ color: "#A78BFA", fontWeight: 500 }}>
-                {token}
-              </span>
-            );
+            return <span key={j} style={{ color: C.function, fontWeight: 500 }}>{token}</span>;
+
+          // Object keys
           if (/^[a-zA-Z_]\w*$/.test(trimmed) && nextActualToken === ":")
-            return (
-              <span key={j} style={{ color: "#38BDF8" }}>
-                {token}
-              </span>
-            );
-          if (
-            [
-              ":",
-              "{",
-              "}",
-              "(",
-              ")",
-              "[",
-              "]",
-              "=",
-              "+",
-              "-",
-              "*",
-              "/",
-              ";",
-              ",",
-            ].includes(trimmed)
-          )
-            return (
-              <span key={j} style={{ color: "#52525B" }}>
-                {token}
-              </span>
-            );
-          return (
-            <span key={j} style={{ color: "#D4D4D8" }}>
-              {token}
-            </span>
-          );
+            return <span key={j} style={{ color: C.text }}>{token}</span>;
+
+          // Punctuation
+          if ([":", "{", "}", "(", ")", "[", "]", "=", "+", "-", "*", "/", ";", ","].includes(trimmed))
+            return <span key={j} style={{ color: C.punctuation }}>{token}</span>;
+
+          // Default text
+          return <span key={j} style={{ color: C.text }}>{token}</span>;
         })}
-      </div>
+      </>
     );
   });
 }
 
-// Helper function to colorize the values in YAML cleanly
+// ─────────────────────────────────────────────
+// YAML Value Colorizer Helper
+// ─────────────────────────────────────────────
 function colorizeYamlValue(val: string) {
   if (!val) return null;
   const trimmed = val.trim();
-  if (!trimmed) return <span style={{ whiteSpace: "pre" }}>{val}</span>;
+  if (!trimmed) return <span>{val}</span>;
 
-  // Split trailing comments if they exist (e.g. `port: 8080 # App port`)
+  // Split trailing comments if they exist
   let actualValue = val;
   let comment = "";
   const commentIdx = val.indexOf(" #");
@@ -224,20 +205,20 @@ function colorizeYamlValue(val: string) {
 
   // Syntax highlighting logic
   if (trimmedVal.startsWith('"') || trimmedVal.startsWith("'")) {
-    valueNode = <span style={{ color: "#34D399" }}>{actualValue}</span>; // Green strings
+    valueNode = <span style={{ color: C.string }}>{actualValue}</span>;
   } else if (!isNaN(Number(trimmedVal)) && trimmedVal !== "") {
-    valueNode = <span style={{ color: "#FBBF24" }}>{actualValue}</span>; // Amber numbers
+    valueNode = <span style={{ color: C.number }}>{actualValue}</span>;
   } else if (trimmedVal === "true" || trimmedVal === "false") {
-    valueNode = <span style={{ color: "#F472B6" }}>{actualValue}</span>; // Pink booleans
+    valueNode = <span style={{ color: C.keyword }}>{actualValue}</span>; // Pink booleans like in your screenshot
   } else {
-    valueNode = <span style={{ color: "#E4E4E7" }}>{actualValue}</span>; // Clean white for regular text (like `postgres:15-alpine`)
+    valueNode = <span style={{ color: C.text }}>{actualValue}</span>;
   }
 
   return (
     <>
       {valueNode}
       {comment && (
-        <span style={{ color: "#71717A", fontStyle: "italic" }}>{comment}</span>
+        <span style={{ color: C.comment, fontStyle: "italic" }}>{comment}</span>
       )}
     </>
   );

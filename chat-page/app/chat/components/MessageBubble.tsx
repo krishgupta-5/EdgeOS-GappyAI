@@ -129,8 +129,7 @@ export default function MessageBubble({
           <div
             style={{
               marginTop: "20px",
-              border: "1px solid #333",
-              background: "#000",
+              background: ["yaml", "config", "docker", "json", "markdown", "deploymentguide", "userstories", "roadmap", "costestimation", "projecttimeline", "riskanalysis", "finalmarkdown"].includes(msg.file.language) ? "#0d1117" : "#000",
               borderRadius: "8px",
               overflow: "hidden",
             }}
@@ -142,13 +141,11 @@ export default function MessageBubble({
             />
             <div
               style={{
-                padding:
-                  msg.file.language === "pipeline" ||
-                  msg.file.language === "dbschema" ||
-                  msg.file.language === "apidesign" ||
-                  msg.file.language === "testingplan"
-                    ? "20px"
-                    : "16px",
+                padding: ["pipeline", "dbschema", "apidesign", "testingplan"].includes(msg.file.language)
+                  ? "20px"
+                  : ["yaml", "config", "docker", "json", "markdown", "deploymentguide", "userstories", "roadmap", "costestimation", "projecttimeline", "riskanalysis", "finalmarkdown"].includes(msg.file.language)
+                  ? "0px"
+                  : "16px",
                 overflowX: "auto",
               }}
             >
@@ -162,6 +159,7 @@ export default function MessageBubble({
                   borderTop: "1px solid #1A1A1A",
                   display: "flex",
                   justifyContent: "flex-end",
+                  background: "transparent",
                 }}
               >
                 <button

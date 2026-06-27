@@ -3,6 +3,10 @@ import { inter, satoshi } from "@/constants";
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import "./globals.css";
+import { Geist, Geist_Mono } from "next/font/google";
+
+const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
+const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' });
 
 export const metadata: Metadata = {
   title: {
@@ -32,7 +36,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${satoshi.variable} font-sans h-full antialiased`}
+      className={`h-full antialiased ${inter.variable} ${satoshi.variable} font-sans ${geist.variable} ${geistMono.variable}`}
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <ClerkProvider

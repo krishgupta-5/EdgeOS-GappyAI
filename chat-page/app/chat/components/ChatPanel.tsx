@@ -131,27 +131,51 @@ const TemplateCard = ({ title, desc, icon, prompt, delay, onClick }: { title: st
   );
 };
 
-const typingPhrases = [
-  "Generating planning artifacts...",
-  "Analyzing product requirements...",
-  "Designing system architecture...",
-  "Generating API specifications...",
-  "Planning database schema...",
-  "Creating technical documentation...",
+const aiPhrases = [
+  "Synthesizing context...",
+  "Applying architectural patterns...",
+  "Optimizing structure...",
+  "Finalizing output...",
 ];
 
-const TypingStatusText = () => {
+const TypingStatusText = ({ artifact }: { artifact: string | null }) => {
   const [idx, setIdx] = useState(0);
   useEffect(() => {
     const interval = setInterval(() => {
-      setIdx((prev) => (prev + 1) % typingPhrases.length);
-    }, 2500);
+      setIdx((prev) => (prev + 1) % aiPhrases.length);
+    }, 2000);
     return () => clearInterval(interval);
   }, []);
+
+  const artifactMap: Record<string, string> = {
+    initial: "System Architecture",
+    config: "System Configuration",
+    docker: "Docker Environment",
+    markdown: "Project Documentation",
+    folderStructure: "Directory Structure",
+    apiDesign: "API Specifications",
+    testingPlan: "Testing Strategy",
+    userStories: "User Stories",
+    roadmap: "Product Roadmap",
+    deploymentGuide: "Deployment Infrastructure",
+    costEstimation: "Cost Analysis",
+    projectTimeline: "Project Timeline",
+    riskAnalysis: "Risk Assessment",
+    finalMarkdown: "Final Specification",
+    db: "Database Schema",
+  };
+
+  const artifactName = artifact ? (artifactMap[artifact] || "Artifacts") : "Response";
+
   return (
-    <span style={{ fontSize: "13px", color: T.textMuted, fontFamily: T.font, animation: "typingFade 2.5s infinite" }}>
-      {typingPhrases[idx]}
-    </span>
+    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <span style={{ fontSize: "13px", fontWeight: 600, color: "#ffffff", fontFamily: T.font, letterSpacing: "0.02em" }}>
+        Generating {artifactName}
+      </span>
+      <span style={{ fontSize: "13px", color: T.textHint, fontFamily: T.font, animation: "typingFade 2s infinite" }}>
+        {aiPhrases[idx]}
+      </span>
+    </div>
   );
 };
 
@@ -196,6 +220,7 @@ export default function ChatPanel({
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [generatingArtifact, setGeneratingArtifact] = useState<ArtifactType | null>(null);
   const [markdownMode, setMarkdownMode] = useState<Record<string, "code" | "preview">>({});
   const [generatedData, setGeneratedData] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -212,9 +237,22 @@ export default function ChatPanel({
     messageId: string; messageContent: string; messageRole: string;
   } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const scrollableRef = useRef<HTMLDivElement>(null);
+  const [showScrollDown, setShowScrollDown] = useState(false);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  useEffect(() => { scrollToBottom(); }, [messages, isTyping]);
+  
+  useEffect(() => { 
+    // Only auto-scroll if we are already at the bottom, or if AI is typing.
+    // If user explicitly scrolled up, don't force them down unless it's a new generation.
+    scrollToBottom(); 
+  }, [messages.length, isTyping]);
+
+  const handleScroll = () => {
+    if (!scrollableRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollableRef.current;
+    setShowScrollDown(scrollHeight - scrollTop - clientHeight > 100);
+  };
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -371,6 +409,7 @@ export default function ChatPanel({
     setMessages(prev => [...prev, { id: Date.now().toString(), role: "user", content: textToSend, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
     if (!overrideInput) setInput("");
     setIsTyping(true);
+    setGeneratingArtifact(artifact);
     if (!overrideInput && textareaRef.current) textareaRef.current.style.height = "auto";
     setModifyMode(false); setModifyTargetArtifact(null);
     try {
@@ -411,7 +450,7 @@ export default function ChatPanel({
     } catch (err) {
       console.error(err);
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: `Error: ${err instanceof Error ? err.message : "Execution failed."}`, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
-    } finally { setIsTyping(false); }
+    } finally { setIsTyping(false); setGeneratingArtifact(null); }
   };
 
   const handleOptionClick = (label: string) => {
@@ -423,7 +462,7 @@ export default function ChatPanel({
   };
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
-    if (textareaRef.current) { textareaRef.current.style.height = "auto"; textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`; }
+    if (textareaRef.current) { textareaRef.current.style.height = "0px"; textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`; }
   };
 
   const handleSuggestionClick = (prompt: string) => {
@@ -432,8 +471,8 @@ export default function ChatPanel({
       textareaRef.current.focus();
       setTimeout(() => {
         if (textareaRef.current) {
-          textareaRef.current.style.height = "auto";
-          textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+          textareaRef.current.style.height = "0px";
+          textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
         }
       }, 0);
     }
@@ -494,7 +533,11 @@ export default function ChatPanel({
       <div style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column", overflow: "hidden", zIndex: 1 }}>
 
         {/* Scrollable Area */}
-        <div style={{ flex: 1, overflowY: "auto", paddingBottom: messages.length === 0 ? "0" : "180px", display: "flex", flexDirection: "column" }}>
+        <div 
+          ref={scrollableRef}
+          onScroll={handleScroll}
+          style={{ flex: 1, overflowY: "auto", paddingBottom: "180px", display: "flex", flexDirection: "column" }}
+        >
 
           {/* ── Empty / Landing State (Functional Dashboard) ── */}
           {messages.length === 0 ? (
@@ -569,26 +612,14 @@ export default function ChatPanel({
                   />
                 </div>
 
-                {/* Input Area */}
-                <div style={{ width: "100%", animation: "slideUp 0.3s ease-out 0.3s both" }}>
-                  <div style={{ marginBottom: "12px", fontSize: "13px", fontWeight: 500, color: T.textMuted }}>Or start with your own product idea</div>
-                  <InputArea
-                    input={input}
-                    textareaRef={textareaRef}
-                    tokenQuota={tokenQuota}
-                    handleInputChange={handleInputChange}
-                    handleKeyDown={handleKeyDown}
-                    handleSend={handleSend}
-                    isTyping={isTyping}
-                  />
-                </div>
+
 
               </div>
             </div>
 
           ) : (
             /* ── Message list ── */
-            <div style={{ maxWidth: "760px", width: "100%", margin: "0 auto", padding: "64px 32px 0", display: "flex", flexDirection: "column" }}>
+            <div style={{ maxWidth: "1000px", width: "100%", margin: "0 auto", padding: "64px 32px 32px", display: "flex", flexDirection: "column" }}>
               {messages.map((msg, idx) => (
                 <div key={msg.id}
                   style={{ display: "flex", gap: "16px", padding: "24px 0", borderBottom: idx !== messages.length - 1 ? `1px solid ${T.border}` : "none", width: "100%" }}
@@ -641,7 +672,7 @@ export default function ChatPanel({
                       {msg.file && (
                         <div style={{ marginTop: "16px", border: `1px solid ${T.border}`, background: T.surface, borderRadius: "8px", overflow: "hidden" }}>
                           <FileHeader msg={msg} markdownMode={markdownMode} setMarkdownMode={setMarkdownMode} />
-                          <div style={{ padding: msg.file.language === "pipeline" || msg.file.language === "dbschema" || msg.file.language === "apidesign" || msg.file.language === "testingplan" ? "20px" : "16px", overflowX: "auto" }}>
+                          <div style={{ overflowX: "auto" }}>
                             <FileContentRenderer msg={msg} markdownMode={markdownMode} />
                           </div>
 
@@ -686,7 +717,7 @@ export default function ChatPanel({
                 <div style={{ display: "flex", gap: "16px", padding: "24px 0" }}>
                   <div style={{ width: "24px", height: "24px", borderRadius: "4px", flexShrink: 0, background: "#ffffff", color: "#000000", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 600, fontFamily: T.font }}>E</div>
                   <div style={{ display: "flex", alignItems: "center", height: "24px" }}>
-                    <TypingStatusText />
+                    <TypingStatusText artifact={generatingArtifact} />
                   </div>
                 </div>
               )}
@@ -696,17 +727,31 @@ export default function ChatPanel({
           )}
         </div>
 
-        {/* ── Fixed input area (Only mounts here when messages exist) ── */}
-        {messages.length > 0 && (
-          <div style={{
+        {/* Blur Backdrop */}
+        <div style={{
             position: "absolute",
             bottom: 0,
             left: 0,
             right: 0,
-            padding: "32px 32px 24px",
-            zIndex: 10,
-            background: "linear-gradient(180deg, rgba(9,9,11,0) 0%, rgba(9,9,11,0.9) 40%, #09090b 100%)",
+            height: "180px",
+            background: "linear-gradient(to top, rgba(9, 9, 11, 0.9) 20%, rgba(9, 9, 11, 0) 100%)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            maskImage: "linear-gradient(to top, black 40%, transparent 100%)",
+            WebkitMaskImage: "linear-gradient(to top, black 40%, transparent 100%)",
             pointerEvents: "none",
+            zIndex: 10,
+        }} />
+
+        {/* ── Fixed input area ── */}
+        <div style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: "0px 32px 32px",
+            pointerEvents: "none",
+            zIndex: 11,
           }}>
             <div style={{ width: "100%", maxWidth: "760px", margin: "0 auto", animation: "slideUp 0.3s ease-out", pointerEvents: "auto" }}>
 
@@ -730,6 +775,9 @@ export default function ChatPanel({
                 </div>
               )}
 
+              {messages.length === 0 && (
+                <div style={{ marginBottom: "12px", fontSize: "13px", fontWeight: 500, color: T.textMuted }}>Or start with your own product idea</div>
+              )}
               <InputArea
                 input={input}
                 textareaRef={textareaRef}
@@ -741,6 +789,38 @@ export default function ChatPanel({
               />
             </div>
           </div>
+
+        {/* Scroll Down Button */}
+        {showScrollDown && (
+          <button
+            onClick={scrollToBottom}
+            style={{
+              position: "absolute",
+              bottom: "120px", // Just above the gradient fade
+              right: "48px",
+              width: "40px",
+              height: "40px",
+              borderRadius: "50%",
+              background: T.surfaceHover,
+              border: `1px solid ${T.borderHover}`,
+              color: T.text,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+              zIndex: 20,
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#ffffff"; e.currentTarget.style.color = "#000000"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.color = T.text; }}
+            aria-label="Scroll to bottom"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <polyline points="19 12 12 19 5 12"></polyline>
+            </svg>
+          </button>
         )}
       </div>
 

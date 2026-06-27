@@ -119,8 +119,8 @@ export default function InputArea({
 
   const onChangeWrapper = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const target = e.target;
-    target.style.height = "auto";
-    target.style.height = `${target.scrollHeight}px`;
+    target.style.height = "0px";
+    target.style.height = `${Math.min(target.scrollHeight, 160)}px`;
     handleInputChange(e);
   };
 
