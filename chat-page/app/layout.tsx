@@ -5,9 +5,23 @@ import { dark } from "@clerk/themes";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "EDGE-OS",
-  description:
-    "Build custom OS images for Intel Edge AI Suites with AI assistance",
+  title: {
+      default: "Edge OS",
+      template: "%s | Edge OS",
+  },
+  description: "AI-powered platform for creators and businesses.",
+  icons: [
+      {
+          media: "(prefers-color-scheme: light)",
+          url: "/icons/icon.png",
+          href: "/icons/icon.png",
+      },
+      {
+          media: "(prefers-color-scheme: dark)",
+          url: "/icons/icon-white.png",
+          href: "/icons/icon-white.png",
+      }
+  ]
 };
 
 export default function RootLayout({
@@ -18,7 +32,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${satoshi.variable} font-heist h-full antialiased`}
+      className={`${inter.variable} ${satoshi.variable} font-sans h-full antialiased`}
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <ClerkProvider

@@ -2,8 +2,10 @@
 
 import React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function PrivacyPolicy() {
+  const router = useRouter();
   return (
     <div
       style={{
@@ -37,8 +39,8 @@ export default function PrivacyPolicy() {
         }}
       >
         <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
-          <Link href="/pricing" style={{ textDecoration: "none" }}>
-            <button
+          <button
+            onClick={() => router.back()}
               style={{
                 width: "36px",
                 height: "36px",
@@ -71,13 +73,11 @@ export default function PrivacyPolicy() {
                 stroke="currentColor"
                 strokeWidth="2"
                 strokeLinecap="round"
-                strokeLinejoin="round"
               >
                 <line x1="19" y1="12" x2="5" y2="12" />
                 <polyline points="12 19 5 12 12 5" />
               </svg>
             </button>
-          </Link>
 
           <div>
             <div

@@ -2,7 +2,19 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Check } from "lucide-react";
+
+// ── Minimal Premium Design Tokens ──────────────────────────────────────
+const T = {
+  bg: "#09090b",
+  surface: "rgba(255, 255, 255, 0.02)",
+  surfaceHover: "rgba(255, 255, 255, 0.04)",
+  border: "rgba(255, 255, 255, 0.08)",
+  borderHover: "rgba(255, 255, 255, 0.15)",
+  text: "#ffffff",
+  textMuted: "#a1a1aa",
+  textHint: "#71717a",
+  font: "var(--font-satoshi), system-ui, -apple-system, sans-serif",
+};
 
 export default function PricingPage() {
   const [isAnnual, setIsAnnual] = useState(true);
@@ -11,130 +23,146 @@ export default function PricingPage() {
     <div
       style={{
         minHeight: "100vh",
-        backgroundColor: "#000000",
-        color: "#EAEAEA",
+        backgroundColor: T.bg,
+        color: T.text,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        padding: "100px 24px 60px",
-        fontFamily: '"Geist", sans-serif',
+        padding: "80px 24px 80px",
+        fontFamily: T.font,
+        position: "relative",
+        overflowX: "hidden",
       }}
     >
+      {/* ── Ambient Background Glow ── */}
+      <div style={{
+        position: "absolute",
+        top: 0,
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: "800px",
+        height: "400px",
+        background: "radial-gradient(ellipse at top, rgba(255,255,255,0.035) 0%, transparent 60%)",
+        pointerEvents: "none",
+        zIndex: 0
+      }} />
+
       {/* ───────────────────────────────────────────── */}
       {/* PAGE HEADER                                   */}
       {/* ───────────────────────────────────────────── */}
       <div
         style={{
           width: "100%",
-          maxWidth: "1024px",
+          maxWidth: "1100px",
           display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "space-between",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
           marginBottom: "64px",
-          paddingBottom: "24px",
-          borderBottom: "1px solid #1A1A1A",
-          flexWrap: "wrap",
-          gap: "24px",
+          position: "relative",
+          zIndex: 1,
+          animation: "fadeUp 0.6s ease-out both",
         }}
       >
-        <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
-          <Link href="/chat" style={{ textDecoration: "none" }}>
-            <button
-              style={{
-                width: "36px",
-                height: "36px",
-                background: "transparent",
-                border: "1px solid #222",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: "4px",
-                cursor: "pointer",
-                color: "#888",
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = "#EAEAEA";
-                e.currentTarget.style.background = "#111";
-                e.currentTarget.style.borderColor = "#444";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = "#888";
-                e.currentTarget.style.background = "transparent";
-                e.currentTarget.style.borderColor = "#222";
-              }}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="19" y1="12" x2="5" y2="12" />
-                <polyline points="12 19 5 12 12 5" />
-              </svg>
-            </button>
-          </Link>
+        <Link href="/chat" style={{ position: "absolute", left: 0, top: 0, textDecoration: "none" }}>
+          <button
+            style={{
+              width: "40px",
+              height: "40px",
+              background: T.surface,
+              border: `1px solid ${T.border}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "10px",
+              cursor: "pointer",
+              color: T.textMuted,
+              transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+              backdropFilter: "blur(12px)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = T.text;
+              e.currentTarget.style.background = T.surfaceHover;
+              e.currentTarget.style.borderColor = T.borderHover;
+              e.currentTarget.style.transform = "translateX(-2px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = T.textMuted;
+              e.currentTarget.style.background = T.surface;
+              e.currentTarget.style.borderColor = T.border;
+              e.currentTarget.style.transform = "translateX(0)";
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12" />
+              <polyline points="12 19 5 12 12 5" />
+            </svg>
+          </button>
+        </Link>
 
-          <div>
-            <div
-              style={{
-                fontSize: "14px",
-                fontWeight: 600,
-                color: "#EAEAEA",
-                fontFamily: '"Geist Mono", monospace',
-                letterSpacing: "1px",
-                textTransform: "uppercase",
-              }}
-            >
-              PLANS & PRICING
-            </div>
-            <p
-              style={{
-                color: "#A1A1AA",
-                fontSize: "13px",
-                marginTop: "6px",
-                marginBottom: 0,
-                lineHeight: "1.5",
-              }}
-            >
-              Transparent pricing for developers and engineering teams.
-            </p>
-          </div>
+        {/* Early Access Badge */}
+        <div style={{
+          display: "inline-flex", alignItems: "center", gap: "8px", padding: "6px 12px", borderRadius: "100px",
+          background: "rgba(255,255,255,0.03)", border: `1px solid ${T.border}`,
+          marginBottom: "24px",
+        }}>
+          <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#ffffff", boxShadow: "0 0 8px #ffffff" }} />
+          <span style={{ fontSize: "12px", fontWeight: 600, color: T.textMuted, letterSpacing: "0.04em", textTransform: "uppercase" }}>Early Access</span>
         </div>
+
+        <h1 style={{
+          fontSize: "48px",
+          fontWeight: 500,
+          letterSpacing: "-0.03em",
+          margin: "0 0 16px 0",
+          textAlign: "center",
+          lineHeight: 1.1,
+          background: "linear-gradient(180deg, #FFFFFF 0%, rgba(255,255,255,0.6) 100%)",
+          WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent",
+        }}>
+          Build better products.<br />
+          <span style={{ color: "#ffffff", WebkitTextFillColor: "#ffffff" }}>Free for now.</span>
+        </h1>
+
+        <p style={{
+          color: T.textMuted,
+          fontSize: "16px",
+          lineHeight: "1.6",
+          textAlign: "center",
+          maxWidth: "600px",
+          margin: "0 0 32px 0",
+        }}>
+          Generate product roadmaps, technical documentation, APIs, database schemas, architecture plans and testing strategies completely free during our early access period.
+        </p>
 
         {/* BILLING TOGGLE */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "4px",
-            background: "#050505",
+            background: "rgba(255,255,255,0.02)",
             padding: "4px",
-            borderRadius: "4px",
-            border: "1px solid #1A1A1A",
+            borderRadius: "12px",
+            border: `1px solid ${T.border}`,
+            backdropFilter: "blur(12px)"
           }}
         >
           <button
             onClick={() => setIsAnnual(false)}
             style={{
-              padding: "8px 16px",
-              background: !isAnnual ? "#1A1A1A" : "transparent",
-              color: !isAnnual ? "#EAEAEA" : "#666",
+              padding: "8px 20px",
+              background: !isAnnual ? "rgba(255,255,255,0.08)" : "transparent",
+              color: !isAnnual ? T.text : T.textMuted,
               border: "1px solid",
-              borderColor: !isAnnual ? "#333" : "transparent",
-              borderRadius: "2px",
-              fontSize: "11px",
-              fontFamily: '"Geist Mono", monospace',
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
+              borderColor: !isAnnual ? "rgba(255,255,255,0.1)" : "transparent",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontFamily: T.font,
+              fontWeight: 500,
               cursor: "pointer",
               transition: "all 0.2s ease",
+              boxShadow: !isAnnual ? "0 2px 8px rgba(0,0,0,0.2)" : "none"
             }}
           >
             Monthly
@@ -142,29 +170,26 @@ export default function PricingPage() {
           <button
             onClick={() => setIsAnnual(true)}
             style={{
-              padding: "8px 16px",
-              background: isAnnual ? "#1A1A1A" : "transparent",
-              color: isAnnual ? "#EAEAEA" : "#666",
+              padding: "8px 20px",
+              background: isAnnual ? "rgba(255,255,255,0.08)" : "transparent",
+              color: isAnnual ? T.text : T.textMuted,
               border: "1px solid",
-              borderColor: isAnnual ? "#333" : "transparent",
-              borderRadius: "2px",
-              fontSize: "11px",
-              fontFamily: '"Geist Mono", monospace',
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
+              borderColor: isAnnual ? "rgba(255,255,255,0.1)" : "transparent",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontFamily: T.font,
+              fontWeight: 500,
               cursor: "pointer",
               transition: "all 0.2s ease",
               display: "flex",
               alignItems: "center",
               gap: "8px",
+              boxShadow: isAnnual ? "0 2px 8px rgba(0,0,0,0.2)" : "none"
             }}
           >
-            Annually{" "}
-            <span
-              style={{ color: "#10B981", fontSize: "10px", fontWeight: 700 }}
-            >
-              [ -20% ]
+            Annually
+            <span style={{ color: T.textMuted, fontSize: "11px", fontWeight: 600, background: "rgba(255,255,255,0.05)", padding: "2px 6px", borderRadius: "4px" }}>
+              -20%
             </span>
           </button>
         </div>
@@ -176,107 +201,81 @@ export default function PricingPage() {
       <div
         style={{
           width: "100%",
-          maxWidth: "1024px",
+          maxWidth: "1100px",
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
           gap: "24px",
           alignItems: "stretch",
+          position: "relative",
+          zIndex: 1,
+          animation: "fadeUp 0.6s ease-out 0.2s both",
         }}
       >
-        {/* TIER 1: HOBBYIST */}
+        {/* TIER 1: STARTER */}
         <PricingCard
-          title="HOBBYIST"
-          description="For individuals exploring the platform."
+          title="Starter"
+          description="Perfect for founders, students and solo builders."
           price="0"
-          interval="FOREVER"
+          interval="month"
+          isAvailable={true}
           features={[
-            "10,000 Tokens / Month",
-            "Standard Execution Speed",
-            "1 Project Workspace",
-            "Community Support",
+            "AI Product Planning",
+            "Roadmap Generation",
+            "User Stories",
+            "PRD Generation",
+            "Markdown Documentation",
+            "Project Timeline Planning"
           ]}
-          buttonText="Get Started"
-          buttonVariant="secondary"
+          buttonText="Start Planning Free"
         />
 
-        {/* TIER 2: ARCHITECT PRO (HIGHLIGHTED) */}
+        {/* TIER 2: PRO */}
         <PricingCard
-          title="ARCHITECT PRO"
-          description="For professional developers and small teams."
+          title="Pro"
+          description="For developers building production-ready software."
           price={isAnnual ? "39" : "49"}
-          interval="PER MONTH"
-          isHighlighted={true}
+          interval="month"
+          isAvailable={false}
           features={[
-            "500,000 Tokens / Month",
-            "Fast Execution Speed",
-            "10 Project Workspaces",
-            "Custom Integrations",
-            "Priority Support",
+            "Everything in Starter",
+            "API Design",
+            "Database Schema Generation",
+            "System Architecture",
+            "Testing Plans",
+            "Docker Configuration",
+            "CI/CD Pipeline Planning",
+            "Risk Analysis"
           ]}
-          buttonText="Upgrade to Pro"
-          buttonVariant="primary"
+          buttonText="Upgrade"
         />
 
-        {/* TIER 3: ENTERPRISE */}
+        {/* TIER 3: TEAM */}
         <PricingCard
-          title="ENTERPRISE"
-          description="For large organizations with custom needs."
-          price="CUSTOM"
-          interval="CONTACT SALES"
+          title="Team"
+          description="For startups and collaborative product teams."
+          price={isAnnual ? "89" : "99"}
+          interval="month"
+          isAvailable={false}
           features={[
-            "Unlimited Tokens",
-            "Maximum Execution Speed",
-            "Unlimited Workspaces",
-            "On-Premise Deployment",
-            "Dedicated Account Manager",
+            "Everything in Pro",
+            "Team Workspaces",
+            "Shared Project Planning",
+            "Architecture Decisions (ADR)",
+            "Advanced Documentation",
+            "Deployment Planning",
+            "Priority Support"
           ]}
-          buttonText="Contact Sales"
-          buttonVariant="secondary"
+          buttonText="Upgrade"
         />
       </div>
 
-      {/* ───────────────────────────────────────────── */}
-      {/* RESTORED FOOTER                               */}
-      {/* ───────────────────────────────────────────── */}
-      <div
-        style={{
-          marginTop: "auto", // Forces the footer to the bottom of the page
-          paddingTop: "80px",
-          display: "flex",
-          gap: "24px",
-          color: "#444",
-          fontSize: "11px",
-          fontFamily: '"Geist Mono", monospace',
-          textTransform: "uppercase",
-          letterSpacing: "1px",
-        }}
-      >
-        <Link
-          href="/terms"
-          style={{
-            color: "inherit",
-            textDecoration: "none",
-            transition: "color 0.2s",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#EAEAEA")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#444")}
-        >
-          Terms of Service
-        </Link>
-        <span>&bull;</span>
-        <Link
-          href="/privacy"
-          style={{
-            color: "inherit",
-            textDecoration: "none",
-            transition: "color 0.2s",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#EAEAEA")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#444")}
-        >
-          Privacy Policy
-        </Link>
-      </div>
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @keyframes fadeUp { 
+          from { opacity: 0; transform: translateY(20px); } 
+          to { opacity: 1; transform: translateY(0); } 
+        }
+      `}} />
     </div>
   );
 }
@@ -292,8 +291,7 @@ interface PricingCardProps {
   interval: string;
   features: string[];
   buttonText: string;
-  buttonVariant: "primary" | "secondary";
-  isHighlighted?: boolean;
+  isAvailable: boolean;
 }
 
 function PricingCard({
@@ -303,211 +301,175 @@ function PricingCard({
   interval,
   features,
   buttonText,
-  buttonVariant,
-  isHighlighted = false,
+  isAvailable,
 }: PricingCardProps) {
+  const [hover, setHover] = useState(false);
+
   return (
     <div
       style={{
-        background: isHighlighted ? "#0A0A0A" : "#000000",
-        border: "1px solid",
-        borderColor: isHighlighted ? "#222" : "#1A1A1A",
-        borderTop: isHighlighted ? "2px solid #EAEAEA" : "1px solid #1A1A1A",
-        borderRadius: "4px",
-        padding: "40px 32px",
+        background: isAvailable ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.01)",
+        border: `1px solid ${isAvailable ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.04)"}`,
+        borderRadius: "24px",
+        padding: "32px",
         display: "flex",
         flexDirection: "column",
-        transition: "all 0.2s ease",
+        transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
         position: "relative",
+        overflow: "hidden",
+        backdropFilter: "blur(24px)",
+        WebkitBackdropFilter: "blur(24px)",
+        boxShadow: isAvailable
+          ? "inset 0 1px 1px rgba(255,255,255,0.1), 0 8px 32px rgba(0,0,0,0.4)"
+          : "none",
+        transform: hover && isAvailable ? "translateY(-4px)" : "translateY(0)"
       }}
-      onMouseEnter={(e) => {
-        if (!isHighlighted) {
-          e.currentTarget.style.background = "#050505";
-          e.currentTarget.style.borderColor = "#222";
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!isHighlighted) {
-          e.currentTarget.style.background = "#000000";
-          e.currentTarget.style.borderColor = "#1A1A1A";
-        }
-      }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
     >
-      <div
-        style={{
-          marginBottom: "32px",
+      {/* Locked Overlay for Unavailable Plans */}
+      {!isAvailable && (
+        <div style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 20,
           display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontSize: "13px",
-              color: isHighlighted ? "#EAEAEA" : "#888",
-              fontFamily: '"Geist Mono", monospace',
-              fontWeight: 600,
-              letterSpacing: "1px",
-              textTransform: "uppercase",
-              marginBottom: "12px",
-            }}
-          >
-            {title}
+          alignItems: "center",
+          justifyContent: "center",
+        }}>
+          <div style={{
+            padding: "8px 20px",
+            background: "rgba(255,255,255,0.08)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: "100px",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+            backdropFilter: "blur(24px)",
+            WebkitBackdropFilter: "blur(24px)"
+          }}>
+            <span style={{ fontSize: "11px", fontWeight: 600, color: "#ffffff", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              Available Soon
+            </span>
           </div>
-          <p
-            style={{
-              color: "#A1A1AA",
-              fontSize: "14px",
-              lineHeight: "1.6",
-              margin: 0,
-              minHeight: "44px",
-            }}
-          >
+        </div>
+      )}
+
+      {/* Card Content (HEAVILY BLURRED if not available) */}
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        opacity: isAvailable ? 1 : 0.2,
+        filter: isAvailable ? "none" : "blur(12px) grayscale(100%)",
+        pointerEvents: isAvailable ? "auto" : "none",
+        userSelect: isAvailable ? "auto" : "none",
+        transition: "all 0.3s ease"
+      }}>
+
+        <div style={{ marginBottom: "24px" }}>
+          <h3 style={{
+            fontSize: "20px",
+            fontWeight: 600,
+            color: T.text,
+            letterSpacing: "-0.01em",
+            margin: "0 0 8px 0"
+          }}>
+            {title}
+          </h3>
+          <p style={{
+            color: T.textMuted,
+            fontSize: "14px",
+            lineHeight: "1.6",
+            margin: 0,
+            minHeight: "44px",
+          }}>
             {description}
           </p>
         </div>
-        {isHighlighted && (
-          <div
-            style={{
-              background: "#EAEAEA",
-              color: "#000",
-              padding: "4px 8px",
-              fontSize: "9px",
-              fontFamily: '"Geist Mono", monospace',
-              fontWeight: 700,
-              letterSpacing: "0.5px",
-              textTransform: "uppercase",
-              borderRadius: "2px",
-            }}
-          >
-            Recommended
-          </div>
-        )}
-      </div>
 
-      <div
-        style={{
-          marginBottom: "32px",
-          display: "flex",
-          alignItems: "baseline",
-          gap: "10px",
-        }}
-      >
-        {price !== "CUSTOM" && (
-          <span
-            style={{
-              fontSize: "24px",
-              color: "#888",
-              fontFamily: '"Geist Mono", monospace',
+        <div style={{ marginBottom: "32px", display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: "6px" }}>
+            <span style={{
+              fontSize: "42px",
+              color: T.text,
+              fontWeight: 600,
+              letterSpacing: "-1px",
+              lineHeight: 1,
+            }}>
+              ${price}
+            </span>
+            <span style={{
+              fontSize: "14px",
+              color: T.textHint,
               fontWeight: 500,
-            }}
-          >
-            $
-          </span>
-        )}
-        <span
-          style={{
-            fontSize: price === "CUSTOM" ? "36px" : "48px",
-            color: "#EAEAEA",
-            fontFamily: '"Geist Mono", monospace',
-            fontWeight: 600,
-            letterSpacing: "-1px",
-            lineHeight: 1,
-          }}
-        >
-          {price}
-        </span>
-        <span
-          style={{
-            fontSize: "11px",
-            color: "#666",
-            fontFamily: '"Geist Mono", monospace',
-            textTransform: "uppercase",
-            letterSpacing: "1px",
-          }}
-        >
-          {price !== "CUSTOM" ? `/ ${interval}` : interval}
-        </span>
-      </div>
-
-      <button
-        style={{
-          width: "100%",
-          padding: "16px",
-          background: buttonVariant === "primary" ? "#EAEAEA" : "transparent",
-          color: buttonVariant === "primary" ? "#000" : "#EAEAEA",
-          border: "1px solid",
-          borderColor: buttonVariant === "primary" ? "#EAEAEA" : "#333",
-          borderRadius: "2px",
-          fontSize: "12px",
-          fontFamily: '"Geist Mono", monospace',
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: "1px",
-          cursor: "pointer",
-          transition: "all 0.2s ease",
-          marginBottom: "40px",
-        }}
-        onMouseEnter={(e) => {
-          if (buttonVariant === "primary") {
-            e.currentTarget.style.background = "#FFFFFF";
-            e.currentTarget.style.borderColor = "#FFFFFF";
-          } else {
-            e.currentTarget.style.background = "#111";
-            e.currentTarget.style.borderColor = "#555";
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (buttonVariant === "primary") {
-            e.currentTarget.style.background = "#EAEAEA";
-            e.currentTarget.style.borderColor = "#EAEAEA";
-          } else {
-            e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.borderColor = "#333";
-          }
-        }}
-      >
-        {buttonText}
-      </button>
-
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "16px",
-          flex: 1,
-        }}
-      >
-        <div
-          style={{
-            fontSize: "10px",
-            color: "#666",
-            fontFamily: '"Geist Mono", monospace',
-            textTransform: "uppercase",
-            letterSpacing: "1px",
-            marginBottom: "8px",
-          }}
-        >
-          Included Features
-        </div>
-        {features.map((feature, i) => (
-          <div
-            key={i}
-            style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}
-          >
-            <Check
-              size={16}
-              color={isHighlighted ? "#A1A1AA" : "#555"}
-              style={{ flexShrink: 0, marginTop: "2px" }}
-            />
-            <span
-              style={{ color: "#A1A1AA", fontSize: "14px", lineHeight: "1.5" }}
-            >
-              {feature}
+              marginBottom: "4px"
+            }}>
+              / {interval}
             </span>
           </div>
-        ))}
+
+          {isAvailable && (
+            <div>
+              <span style={{
+                display: "inline-block",
+                fontSize: "11px",
+                fontWeight: 600,
+                color: T.text,
+                background: "rgba(255,255,255,0.1)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                padding: "4px 10px",
+                borderRadius: "100px",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em"
+              }}>
+                Unlimited Beta Access
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div style={{ height: "1px", width: "100%", background: T.border, marginBottom: "32px" }} />
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px", flex: 1 }}>
+          {features.map((feature, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "flex-start" }}>
+              <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", lineHeight: "1.5" }}>
+                {feature}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <button
+          style={{
+            width: "100%",
+            marginTop: "40px",
+            padding: "12px",
+            background: isAvailable ? T.text : "rgba(255,255,255,0.05)",
+            color: isAvailable ? T.bg : T.textHint,
+            border: `1px solid ${isAvailable ? T.text : T.border}`,
+            borderRadius: "12px",
+            fontSize: "14px",
+            fontFamily: T.font,
+            fontWeight: 600,
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+          }}
+          onMouseEnter={(e) => {
+            if (isAvailable) {
+              e.currentTarget.style.background = "#e5e5e5";
+              e.currentTarget.style.borderColor = "#e5e5e5";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (isAvailable) {
+              e.currentTarget.style.background = T.text;
+              e.currentTarget.style.borderColor = T.text;
+            }
+          }}
+        >
+          {buttonText}
+        </button>
+
       </div>
     </div>
   );

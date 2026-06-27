@@ -49,7 +49,7 @@ export default function FileHeader({ msg, markdownMode, setMarkdownMode }: FileH
     >
       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
         <div style={{ width: "6px", height: "6px", background: "#71717a", borderRadius: "50%" }} />
-        <span style={{ fontSize: "12px", color: "#ffffff", fontWeight: 500, fontFamily: 'var(--font-inter), system-ui, sans-serif' }}>
+        <span style={{ fontSize: "12px", color: "#ffffff", fontWeight: 500, fontFamily: 'var(--font-satoshi), system-ui, sans-serif' }}>
           {name}
         </span>
         <LanguageBadge language={language} />
@@ -59,13 +59,13 @@ export default function FileHeader({ msg, markdownMode, setMarkdownMode }: FileH
           <>
             <button
               onClick={() => setMarkdownMode((prev) => ({ ...prev, [msg.id]: "code" }))}
-              style={{ fontSize: "10px", color: currentMode === "code" ? "#ffffff" : "#a1a1aa", background: currentMode === "code" ? "#18181b" : "transparent", border: `1px solid ${currentMode === "code" ? "#27272a" : "#18181b"}`, padding: "4px 10px", borderRadius: "4px", cursor: "pointer", fontFamily: 'var(--font-inter), system-ui, sans-serif', transition: "all 0.15s" }}
+              style={{ fontSize: "10px", color: currentMode === "code" ? "#ffffff" : "#a1a1aa", background: currentMode === "code" ? "#18181b" : "transparent", border: `1px solid ${currentMode === "code" ? "#27272a" : "#18181b"}`, padding: "4px 10px", borderRadius: "4px", cursor: "pointer", fontFamily: 'var(--font-satoshi), system-ui, sans-serif', transition: "all 0.15s" }}
             >
               CODE
             </button>
             <button
               onClick={() => setMarkdownMode((prev) => ({ ...prev, [msg.id]: "preview" }))}
-              style={{ fontSize: "10px", color: currentMode === "preview" ? "#ffffff" : "#a1a1aa", background: currentMode === "preview" ? "#18181b" : "transparent", border: `1px solid ${currentMode === "preview" ? "#27272a" : "#18181b"}`, padding: "4px 10px", borderRadius: "4px", cursor: "pointer", fontFamily: 'var(--font-inter), system-ui, sans-serif', transition: "all 0.15s" }}
+              style={{ fontSize: "10px", color: currentMode === "preview" ? "#ffffff" : "#a1a1aa", background: currentMode === "preview" ? "#18181b" : "transparent", border: `1px solid ${currentMode === "preview" ? "#27272a" : "#18181b"}`, padding: "4px 10px", borderRadius: "4px", cursor: "pointer", fontFamily: 'var(--font-satoshi), system-ui, sans-serif', transition: "all 0.15s" }}
             >
               PREVIEW
             </button>

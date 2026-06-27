@@ -61,8 +61,6 @@ export default function Home() {
           <main className="flex-1 flex flex-col h-full w-full relative overflow-hidden bg-background">
             <ChatPanel
               agentName={agentNames[activeAgentId]}
-              onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-              isSidebarOpen={isSidebarOpen}
               showLoginModal={showLoginModal}
               onShowLoginModal={setShowLoginModal}
             />

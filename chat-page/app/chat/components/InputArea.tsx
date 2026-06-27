@@ -1,145 +1,216 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+
+interface InputQuota {
+  tokensUsed: number;
+  tokensLimit: number;
+  tokensRemaining: number;
+  exhausted: boolean;
+  resetAt: number;
+}
 
 interface InputAreaProps {
   input: string;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
-  tokenQuota: {
-    tokensUsed: number;
-    tokensLimit: number;
-    tokensRemaining: number;
-    exhausted: boolean;
-    resetAt: number;
-  } | null;
+  tokenQuota: InputQuota | null;
   handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   handleSend: () => void;
   isTyping: boolean;
 }
 
-export default function InputArea({ 
-  input, 
-  textareaRef, 
-  tokenQuota, 
-  handleInputChange, 
-  handleKeyDown, 
-  handleSend,
-  isTyping 
-}: InputAreaProps) {
+// --- Helper Components for Encapsulated Hover States ---
+
+const IconButton = ({ children, title }: { children: React.ReactNode; title: string }) => {
+  const [isHovered, setIsHovered] = useState(false);
+
   return (
-    <div
+    <button
+      title={title}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
-        background: "#18181b",
-        padding: "12px 16px",
         display: "flex",
         alignItems: "center",
-        gap: "12px",
-        border: "1px solid #27272a",
+        justifyContent: "center",
+        width: "36px",
+        height: "36px",
         borderRadius: "10px",
-        transition: "border-color 0.2s, box-shadow 0.2s",
-        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)",
+        background: isHovered ? "rgba(255, 255, 255, 0.08)" : "transparent",
+        color: isHovered ? "#ffffff" : "#a1a1aa",
+        border: "1px solid transparent",
+        cursor: "pointer",
+        transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#3f3f46"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#27272a"; }}
     >
+      {children}
+    </button>
+  );
+};
 
+const SendButton = ({
+  onClick,
+  disabled,
+  isTyping,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+  isTyping: boolean;
+}) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const shouldAnimateLift = isHovered && !disabled;
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled || isTyping}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      style={{
+        width: "40px",
+        height: "40px",
+        borderRadius: "12px",
+        background: disabled ? "rgba(255, 255, 255, 0.05)" : "#ffffff",
+        color: disabled ? "rgba(255, 255, 255, 0.3)" : "#000000",
+        border: "none",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: disabled ? "not-allowed" : "pointer",
+        transform: shouldAnimateLift ? "scale(1.05)" : "scale(1)",
+        boxShadow: shouldAnimateLift
+          ? "0 4px 14px rgba(255, 255, 255, 0.25)"
+          : "none",
+        transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+      }}
+    >
+      {isTyping ? (
+        <svg className="send-spinner" width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" fill="none" opacity="0.3" />
+          <path d="M21 12a9 9 0 0 1-6.219 8.56" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" fill="none">
+            <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
+          </path>
+        </svg>
+      ) : (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="19" x2="12" y2="5" />
+          <polyline points="5 12 12 5 19 12" />
+        </svg>
+      )}
+    </button>
+  );
+};
+
+
+// --- Main Component ---
+
+export default function InputArea({
+  input,
+  textareaRef,
+  tokenQuota,
+  handleInputChange,
+  handleKeyDown,
+  handleSend,
+  isTyping,
+}: InputAreaProps) {
+  const [isFocused, setIsFocused] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const onChangeWrapper = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const target = e.target;
+    target.style.height = "auto";
+    target.style.height = `${target.scrollHeight}px`;
+    handleInputChange(e);
+  };
+
+  const isSubmitDisabled = !input.trim() || tokenQuota?.exhausted || isTyping;
+
+  return (
+    <div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      style={{
+        width: "100%",
+        // Premium Frosted Glass Container
+        background: isFocused ? "rgba(255, 255, 255, 0.04)" : isHovered ? "rgba(255, 255, 255, 0.03)" : "rgba(20, 20, 24, 0.5)",
+        backdropFilter: "blur(24px)",
+        WebkitBackdropFilter: "blur(24px)",
+        border: `1px solid ${isFocused
+            ? "rgba(255, 255, 255, 0.2)"
+            : isHovered
+              ? "rgba(255, 255, 255, 0.12)"
+              : "rgba(255, 255, 255, 0.06)"
+          }`,
+        borderRadius: "20px",
+        padding: "16px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "12px",
+        boxShadow: isFocused
+          ? "0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)"
+          : "0 8px 24px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.02)",
+        transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+      }}
+    >
       <textarea
         ref={textareaRef}
         value={input}
-        onChange={handleInputChange}
+        onChange={onChangeWrapper}
         onKeyDown={handleKeyDown}
-        placeholder={isTyping ? "Processing..." : "Ask about projects, suites, or the UI..."}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        placeholder="Describe the software product you want to build..."
         disabled={isTyping}
         rows={1}
         style={{
-          flex: 1,
+          width: "100%",
           background: "transparent",
           border: "none",
           outline: "none",
-          color: isTyping ? "#71717a" : "#ffffff",
-          fontSize: "14px",
-          fontFamily: "var(--font-inter), system-ui, sans-serif",
-          resize: "none",
-          lineHeight: "1.5",
-          height: "auto",
-          minHeight: "24px",
-          maxHeight: "120px",
-          overflowY: "auto",
-          padding: "0",
+          color: "#ffffff",
+          fontSize: "15px",
+          fontFamily: "var(--font-satoshi), system-ui, sans-serif",
+          lineHeight: "1.6",
+          padding: "0 4px",
           margin: "0",
-          cursor: isTyping ? "not-allowed" : "text",
-          opacity: isTyping ? 0.6 : 1,
+          resize: "none",
+          overflowY: "auto",
+          minHeight: "24px",
+          maxHeight: "160px",
         }}
       />
-      <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-        <button
-          onClick={() => {
-            // File attachment functionality to be implemented
-            console.log('File attachment clicked');
-          }}
-          style={{ background: "transparent", border: "none", color: "#a1a1aa", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: "4px 8px", borderRadius: "8px", transition: "all 0.15s ease", fontSize: "16px", fontFamily: "var(--font-inter), system-ui, sans-serif", fontWeight: 500 }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = "#ffffff"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(255, 255, 255, 0.06)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.color = "#a1a1aa"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
-          title="Attach File"
-        >
-          +
-        </button>
-        <button
-          onClick={handleSend}
-          disabled={tokenQuota?.exhausted || isTyping}
-          style={{
-            background: (input.trim() && !tokenQuota?.exhausted && !isTyping) ? "#ffffff" : "transparent",
-            border: `1px solid ${tokenQuota?.exhausted ? "#ef444440" : isTyping ? "#27272a" : input.trim() ? "#ffffff" : "#27272a"}`,
-            color: tokenQuota?.exhausted ? "#ef4444" : isTyping ? "#71717a" : input.trim() ? "#09090b" : "#71717a",
-            cursor: (input.trim() && !tokenQuota?.exhausted && !isTyping) ? "pointer" : "default",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "6px 14px",
-            fontSize: "12px",
-            fontWeight: 600,
-            fontFamily: "var(--font-inter), system-ui, sans-serif",
-            textTransform: "uppercase",
-            transition: "all 0.15s ease",
-            borderRadius: "8px",
-            opacity: isTyping ? 0.7 : 1,
-          }}
-          onMouseEnter={(e) => {
-            if (input.trim() && !tokenQuota?.exhausted && !isTyping) {
-              e.currentTarget.style.background = "#e4e4e7";
-              e.currentTarget.style.borderColor = "#e4e4e7";
-            } else if (!isTyping && !tokenQuota?.exhausted) {
-              e.currentTarget.style.background = "rgba(255, 255, 255, 0.04)";
-              e.currentTarget.style.borderColor = "#3f3f46";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (input.trim() && !tokenQuota?.exhausted && !isTyping) {
-              e.currentTarget.style.background = "#ffffff";
-              e.currentTarget.style.borderColor = "#ffffff";
-            } else {
-              e.currentTarget.style.background = "transparent";
-              e.currentTarget.style.borderColor = tokenQuota?.exhausted ? "#ef444440" : isTyping ? "#27272a" : "#27272a";
-            }
-          }}
-        >
-          {tokenQuota?.exhausted ? "BURNED" : isTyping ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <div style={{ 
-                width: "8px", 
-                height: "8px", 
-                border: "2px solid #71717a", 
-                borderTop: "2px solid transparent", 
-                borderRadius: "50%", 
-                animation: "spin 1s linear infinite" 
-              }} />
-              <span>Processing</span>
-            </div>
-          ) : "Exec"}
-        </button>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+        <div style={{ display: "flex", gap: "6px" }}>
+          <IconButton title="Attach file">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+            </svg>
+          </IconButton>
+          <IconButton title="Voice input">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+          </IconButton>
+          <IconButton title="Upload image">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+          </IconButton>
+        </div>
+
+        <SendButton
+          onClick={() => handleSend()}
+          disabled={Boolean(isSubmitDisabled)}
+          isTyping={isTyping}
+        />
       </div>
     </div>
   );
 }
-

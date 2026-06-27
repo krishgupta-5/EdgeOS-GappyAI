@@ -115,8 +115,6 @@ export default function ChatSession() {
 
           <ChatPanel
             agentName={agentNames[activeAgentId]}
-            onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-            isSidebarOpen={isSidebarOpen}
             sessionId={sessionId}
             showLoginModal={showLoginModal}
             onShowLoginModal={setShowLoginModal}

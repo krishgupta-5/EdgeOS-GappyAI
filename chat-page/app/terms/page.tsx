@@ -2,8 +2,10 @@
 
 import React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function TermsOfService() {
+  const router = useRouter();
   return (
     <div
       style={{
@@ -37,8 +39,8 @@ export default function TermsOfService() {
         }}
       >
         <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
-          <Link href="/pricing" style={{ textDecoration: "none" }}>
-            <button
+          <button
+            onClick={() => router.back()}
               style={{
                 width: "36px",
                 height: "36px",
@@ -77,7 +79,6 @@ export default function TermsOfService() {
                 <polyline points="12 19 5 12 12 5" />
               </svg>
             </button>
-          </Link>
 
           <div>
             <div

@@ -34,13 +34,14 @@ export default function LoginModal({
     >
       <div
         style={{
-          backgroundColor: "#080808",
-          border: "1px solid #333",
+          backgroundColor: "#09090b",
+          border: "1px solid rgba(255, 255, 255, 0.15)",
           borderRadius: "12px",
           padding: "32px",
           maxWidth: "400px",
           width: "90%",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.6)",
+          boxShadow: "0 24px 48px rgba(0, 0, 0, 0.9)",
+          fontFamily: "var(--font-satoshi), system-ui, -apple-system, sans-serif",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -50,7 +51,7 @@ export default function LoginModal({
             fontSize: "18px",
             fontWeight: 600,
             marginBottom: "16px",
-            fontFamily: '"Geist Mono", monospace',
+            fontFamily: "var(--font-satoshi), system-ui, sans-serif",
             textAlign: "center",
             letterSpacing: "0.5px",
           }}
@@ -65,7 +66,7 @@ export default function LoginModal({
             marginBottom: "24px",
             textAlign: "center",
             lineHeight: "1.6",
-            fontFamily: '"Geist", sans-serif',
+            fontFamily: "var(--font-satoshi), system-ui, sans-serif",
           }}
         >
           You need to be logged in to send messages. Please sign in to continue
@@ -87,10 +88,9 @@ export default function LoginModal({
               color: "#888",
               cursor: "pointer",
               padding: "10px 20px",
-              fontSize: "12px",
+              fontSize: "13px",
               fontWeight: 500,
-              fontFamily: '"Geist Mono", monospace',
-              textTransform: "uppercase",
+              fontFamily: "var(--font-satoshi), system-ui, sans-serif",
               transition: "all 0.15s ease",
               borderRadius: "6px",
             }}
@@ -114,10 +114,9 @@ export default function LoginModal({
               color: "#000000",
               cursor: "pointer",
               padding: "10px 20px",
-              fontSize: "12px",
+              fontSize: "13px",
               fontWeight: 600,
-              fontFamily: '"Geist Mono", monospace',
-              textTransform: "uppercase",
+              fontFamily: "var(--font-satoshi), system-ui, sans-serif",
               transition: "all 0.15s ease",
               borderRadius: "6px",
             }}
