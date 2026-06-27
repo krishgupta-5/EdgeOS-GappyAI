@@ -326,10 +326,21 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
 
   const clampPos = (x: number, y: number) => ({ x: Math.min(x, window.innerWidth - 168), y: Math.min(y, window.innerHeight - 128) });
 
+
+
   const initials = cachedDisplayName !== "User" ? cachedDisplayName.charAt(0).toUpperCase() : "U";
   const displayName = cachedDisplayName;
 
-  useEffect(() => { if (isOpen && isSignedIn) fetchUserSessions(); }, [isOpen, isSignedIn]);
+  useEffect(() => {
+    if (isOpen && isSignedIn) fetchUserSessions();
+    
+    const handleRefresh = () => {
+      if (isSignedIn) fetchUserSessions();
+    };
+    window.addEventListener('refresh-sessions', handleRefresh);
+    return () => window.removeEventListener('refresh-sessions', handleRefresh);
+  }, [isOpen, isSignedIn]);
+  
   useEffect(() => {
     const handle = (e: MouseEvent) => {
       if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) setContextMenu(null);
@@ -341,7 +352,7 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
 
   const fetchUserSessions = async () => {
     setLoading(true);
-    try { const r = await fetch("/api/sessions", { credentials: "include" }); if (r.ok) setUserSessions((await r.json()).sessions || []); }
+    try { const r = await fetch("/api/sessions", { credentials: "include", cache: "no-store" }); if (r.ok) setUserSessions((await r.json()).sessions || []); }
     catch (e) { console.error(e); } finally { setLoading(false); }
   };
 

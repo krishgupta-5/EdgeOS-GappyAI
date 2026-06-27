@@ -3,6 +3,8 @@ import { auth } from "@clerk/nextjs/server";
 import { db, createOrUpdateUser } from "@/lib/firebase-admin";
 import { getFullUserData } from "@/lib/auth";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: Request) {
   try {
     const { userId } = await auth();
@@ -43,17 +45,22 @@ export async function GET(req: Request) {
           };
         }
 
-        // Only fetch the single most-recent user message (1 doc, not the whole collection)
-        const lastUserMsgSnap = await db
+        const lastMsgsSnap = await db
           .collection("sessions")
           .doc(sessionId)
           .collection("messages")
-          .where("role", "==", "user")
-          .orderBy("createdAt", "desc")
-          .limit(1)
           .get();
 
-        const lastMessage = lastUserMsgSnap.docs[0]?.data()?.content ?? null;
+        const userMessages = lastMsgsSnap.docs
+          .map(d => d.data())
+          .filter(d => d.role === "user")
+          .sort((a, b) => {
+            const ta = a.createdAt?.toDate?.()?.getTime() ?? 0;
+            const tb = b.createdAt?.toDate?.()?.getTime() ?? 0;
+            return tb - ta;
+          });
+
+        const lastMessage = userMessages[0]?.content ?? null;
 
         return {
           sessionId,
