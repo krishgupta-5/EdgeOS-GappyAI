@@ -132,6 +132,8 @@ export function buildContext(
     return demandA - demandB;
   });
 
+  const processedSummaries = new Map<ArtifactType, { content: string, status: string, tokens: number }>();
+
   for (const dep of sortedDeps) {
     const summary = state.summaries[dep];
     const weight = ARTIFACT_WEIGHTS[dep] || 2;
@@ -142,18 +144,25 @@ export function buildContext(
     
     let tokensUsed = 0;
     if (summary.length <= charBudget) {
-      dependencySummaries.set(dep, summary);
-      dependenciesLoaded.push(dep);
+      processedSummaries.set(dep, { content: summary, status: dep, tokens: Math.ceil(summary.length / 4) });
       tokensUsed = Math.ceil(summary.length / 4);
     } else {
-      dependencySummaries.set(dep, summary.slice(0, charBudget) + '\n...[TRUNCATED]');
-      dependenciesLoaded.push(`${dep} (truncated)`);
+      processedSummaries.set(dep, { content: summary.slice(0, charBudget) + '\n...[TRUNCATED]', status: `${dep} (truncated)`, tokens: tokenBudget });
       tokensUsed = tokenBudget;
     }
 
     currentRemainingTokens -= tokensUsed;
     currentTotalWeight -= weight;
-    tokenEstimate += tokensUsed;
+  }
+
+  // Restore original logical order for prompt injection
+  for (const dep of validDeps) {
+    const processed = processedSummaries.get(dep);
+    if (processed) {
+      dependencySummaries.set(dep, processed.content);
+      dependenciesLoaded.push(processed.status);
+      tokenEstimate += processed.tokens;
+    }
   }
   // Add modification budget if in modify mode
   if (mode === 'modify') {
