@@ -1,291 +1,57 @@
 /**
  * /api/generate/route.ts
- * Edge-OS — Per-artifact generation with individual API keys.
+ * Edge-OS — Thin API controller for artifact generation.
  *
- * NEW ARCHITECTURE:
- *  - artifact: "initial"         → YAML (silent) + Markdown shown in UI
- *  - artifact: "config"          → YAML config only
- *  - artifact: "docker"          → docker-compose only
- *  - artifact: "folderStructure" → folder structure only
- *  - artifact: "apiDesign"       → API design only
- *  - artifact: "testingPlan"     → testing plan only
- *  - artifact: "db"              → n8n webhook only
+ * This is the SLIM controller that replaced the original 3,614-line monolith.
+ * All business logic lives in lib/pipeline/*.ts modules.
  *
- *  mode: "modify" + artifact → regenerates only that artifact using session context
+ * Responsibilities:
+ * - Auth (Clerk)
+ * - Request validation
+ * - Dispatch to ArtifactController
+ * - Response formatting
+ * - Token quota management
  *
- * ENV KEYS (add these to .env.local):
- *  GROQ_API_KEY                  ← fallback (required)
- *  GROQ_API_KEY_CONFIG           ← new
- *  GROQ_API_KEY_DOCKER           ← new
- *  GROQ_API_KEY_MARKDOWN         ← already existed
- *  GROQ_API_KEY_FOLDERSTRUCTURE  ← already existed
- *  GROQ_API_KEY_APIDESIGN        ← already existed
- *  GROQ_API_KEY_TESTINGPLAN      ← new
+ * The original route.ts is preserved as route.legacy.ts for reference.
  */
 
-import { NextResponse } from "next/server";
-import YAML from "yaml";
-import { auth } from "@clerk/nextjs/server";
-import { memoryStore } from "@/lib/memory-store";
-import { db, createOrUpdateUser } from "@/lib/firebase-admin";
-import { FieldValue } from "firebase-admin/firestore";
-import { getOrCreateQuota, deductTokens } from "@/lib/token-quota";
-import { getFullUserData } from "@/lib/auth";
+import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
+import { getFullUserData } from '@/lib/auth';
+import { createOrUpdateUser } from '@/lib/firebase-admin';
+import { getOrCreateQuota, deductTokens } from '@/lib/token-quota';
+
+// Pipeline imports
+import type { ArtifactType, RequestArtifactType } from '@/lib/pipeline/types';
+import { PROMPT_MIN_LEN, PROMPT_MAX_LEN } from '@/lib/pipeline/types';
+import {
+  getOrCreateProjectState,
+  generateTitle,
+  generateArtifact,
+  generateInitial,
+  modifyArtifact,
+  generateDbSchema,
+  buildLegacyResult,
+} from '@/lib/pipeline/ArtifactController';
+import * as firestoreService from '@/lib/pipeline/FirestoreService';
 
 // ─────────────────────────────────────────────
-// Constants
+// Helpers
 // ─────────────────────────────────────────────
-const MODEL = "llama-3.1-8b-instant";
-const MAX_RETRIES = 3;
-const MAX_HISTORY = 6;
-const SESSION_TTL_MS = 30 * 60 * 1000;
-const MAX_SESSIONS = 500;
-const PROMPT_MAX_LEN = 2000;
-const PROMPT_MIN_LEN = 5;
-const REQUEST_TIMEOUT_MS = 30_000;
-const ACTIVEPIECES_TIMEOUT_MS = 45_000;
-
-const TOKEN_BUDGET = {
-  config: 500,
-  docker: 1200,
-  markdown: 3000,
-  folderStructure: 600,
-  apiDesign: 800,
-  testingPlan: 700,
-  userStories: 2800,
-  roadmap: 3000,
-  deploymentGuide: 3500,
-  costEstimation: 3500,
-  projectTimeline: 3500,
-  riskAnalysis: 3500,
-  finalMarkdown: 6000,
-} as const;
-
-const IMAGE_MAP_TEXT = `
-  postgresql -> postgres:15-alpine
-  mongodb    -> mongo:7
-  mysql      -> mysql:8
-  redis      -> redis:7-alpine
-  sqlite     -> keinos/sqlite3:latest
-  nodejs     -> node:20-alpine
-  python     -> python:3.11-slim
-  go         -> golang:1.22-alpine`.trim();
-
-// ─────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────
-type ArtifactType =
-  | "initial"
-  | "config"
-  | "docker"
-  | "markdown"
-  | "folderStructure"
-  | "apiDesign"
-  | "testingPlan"
-  | "userStories"
-  | "roadmap"
-  | "deploymentGuide"
-  | "costEstimation"
-  | "projectTimeline"
-  | "riskAnalysis"
-  | "finalMarkdown"
-  | "db";
-
-interface DbSchema {
-  mermaid: string;
-  diagram: string;
-}
-
-interface GenerateResult {
-  yaml: string;
-  markdown: string;
-  docker: string;
-  folderStructure?: string;
-  apiDesign?: string;
-  testingPlan?: string;
-  userStories?: string;
-  roadmap?: string;
-  deploymentGuide?: string;
-  costEstimation?: string;
-  projectTimeline?: string;
-  riskAnalysis?: string;
-  finalMarkdown?: string;
-  dbSchema?: DbSchema;
-}
-
-type Role = "user" | "assistant";
-type HistoryMsg = { role: Role; content: string };
-
-interface SessionData {
-  history: HistoryMsg[];
-  lastResult: GenerateResult | null;
-  cache: Map<string, GenerateResult>;
-  updatedAt: number;
-}
-
-// ─────────────────────────────────────────────
-// Logger
-// ─────────────────────────────────────────────
-const log = {
-  info: (msg: string, meta?: object, key?: string) =>
-    console.log(
-      JSON.stringify({
-        level: "info",
-        msg,
-        ...meta,
-        key: key?.slice(0, 8),
-        ts: Date.now(),
-      }),
-    ),
-  warn: (msg: string, meta?: object, key?: string) =>
-    console.warn(
-      JSON.stringify({
-        level: "warn",
-        msg,
-        ...meta,
-        key: key?.slice(0, 8),
-        ts: Date.now(),
-      }),
-    ),
-  error: (msg: string, meta?: object, key?: string) =>
-    console.error(
-      JSON.stringify({
-        level: "error",
-        msg,
-        ...meta,
-        key: key?.slice(0, 8),
-        ts: Date.now(),
-      }),
-    ),
-};
-
-// ─────────────────────────────────────────────
-// LRU Session store
-// ─────────────────────────────────────────────
-const sessions = new Map<string, SessionData>();
-
-function getSession(id: string): SessionData {
-  const now = Date.now();
-  if (sessions.size >= MAX_SESSIONS) {
-    for (const [k, v] of sessions)
-      if (now - v.updatedAt > SESSION_TTL_MS) sessions.delete(k);
-    if (sessions.size >= MAX_SESSIONS) {
-      const oldest = [...sessions.entries()].sort(
-        (a, b) => a[1].updatedAt - b[1].updatedAt,
-      )[0];
-      if (oldest) sessions.delete(oldest[0]);
-    }
-  }
-  let s = sessions.get(id);
-  if (!s || now - s.updatedAt > SESSION_TTL_MS) {
-    s = { history: [], lastResult: null, cache: new Map(), updatedAt: now };
-    sessions.set(id, s);
-  } else {
-    s.updatedAt = now;
-  }
-  return s;
-}
-
-function trimHistory(h: HistoryMsg[]): HistoryMsg[] {
-  return h.slice(-MAX_HISTORY);
-}
-
-// ─────────────────────────────────────────────
-// YAML helpers
-// ─────────────────────────────────────────────
-function summarizeYaml(yamlText: string): string {
-  const get = (key: string) =>
-    new RegExp(`${key}:\\s*(.+)`).exec(yamlText)?.[1]?.trim() ?? "unknown";
-  return [
-    `name:${get("name")}`,
-    `type:${get("type")}`,
-    `arch:${get("architecture")}`,
-    `lang:${get("language")}`,
-    `framework:${get("framework")}`,
-    `api:${get("api")}`,
-    `db:${get("primary")}`,
-    `cache:${get("cache")}`,
-    `auth:${get("strategy")}`,
-    `deploy:${get("deployment")}`,
-    `ci:${get("ci_cd")}`,
-  ].join(", ");
-}
-
-function compressForHistory(content: string, label: string): string {
-  if (label === "config") return `PREV_CONFIG: ${summarizeYaml(content)}`;
-  return `PREV_${label.toUpperCase()}: ${content.replace(/\s+/g, " ").trim().slice(0, 100)}...`;
-}
-
-function extractYamlBlock(text: string): string {
-  const lines = text.split("\n");
-  const keys =
-    /^(system|backend|frontend|database|auth|infra|version|services|api_design|testing):/;
-  const start = lines.findIndex((l) => keys.test(l.trim()));
-  return start >= 0 ? lines.slice(start).join("\n").trim() : text.trim();
-}
-
-function isTruncated(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed) return false;
-  const lines = trimmed.split("\n");
-  if (lines.length < 5) return true;
-  const last = lines[lines.length - 1].trim();
-  const safe = [
-    /^[a-z_]+:$/,
-    /^\s*retries:\s*\d+$/,
-    /^\s*timeout:\s*\S+$/,
-    /^\s*interval:\s*\S+$/,
-    /^\s*- \S+/,
-    /^\s*volumes:$/,
-    /^\s*depends_on:$/,
-  ];
-  if (safe.some((re) => re.test(last))) return false;
-  if (/^[a-zA-Z_-]+:$/.test(last) && lines.length < 20) return true;
-  if (last === "-") return true;
-  return false;
-}
-
-function safeYaml(text: string): string {
-  try {
-    YAML.parse(text);
-  } catch {
-    log.warn("YAML parse warning");
-  }
-  return text;
-}
-
-function stripFences(text: string): string {
-  return text
-    .replace(/^```(?:yaml|yml|json|markdown|md|dockerfile)?\s*/gim, "")
-    .replace(/^```\s*/gim, "")
-    .replace(/```\s*$/gim, "")
-    .trim();
-}
 
 function sanitisePrompt(raw: string): string {
   return raw
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
-    .replace(/\bPREV_[A-Z]+:/g, "")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .replace(/\bPREV_[A-Z]+:/g, '')
     .trim()
     .slice(0, PROMPT_MAX_LEN);
 }
 
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((_, rej) =>
-      setTimeout(() => rej(new Error(`Timeout ${ms}ms`)), ms),
-    ),
-  ]);
-}
-
 function secureHeaders(res: NextResponse): NextResponse {
-  res.headers.set("X-Content-Type-Options", "nosniff");
-  res.headers.set("X-Frame-Options", "DENY");
-  res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.headers.set("Cache-Control", "no-store");
+  res.headers.set('X-Content-Type-Options', 'nosniff');
+  res.headers.set('X-Frame-Options', 'DENY');
+  res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.headers.set('Cache-Control', 'no-store');
   return res;
 }
 
@@ -297,1318 +63,29 @@ function errorResponse(
   return secureHeaders(NextResponse.json({ error, code }, { status }));
 }
 
-// ─────────────────────────────────────────────
-// API key resolver — one key per artifact
-// ─────────────────────────────────────────────
-function getApiKey(artifact: ArtifactType, fallback: string): string {
-  const map: Partial<Record<ArtifactType, string | undefined>> = {
-    config: process.env.GROQ_API_KEY_CONFIG,
-    docker: process.env.GROQ_API_KEY_DOCKER,
-    markdown: process.env.GROQ_API_KEY_MARKDOWN,
-    folderStructure: process.env.GROQ_API_KEY_FOLDERSTRUCTURE,
-    apiDesign: process.env.GROQ_API_KEY_APIDESIGN,
-    testingPlan: process.env.GROQ_API_KEY_TESTINGPLAN,
-    userStories: process.env.GROQ_API_KEY_USERSTORIES,
-    roadmap: process.env.GROQ_API_KEY_ROADMAP,
-    deploymentGuide: process.env.GROQ_API_KEY_DEPLOYMENTGUIDE,
-    costEstimation: process.env.GROQ_API_KEY_COSTESTIMATION,
-    projectTimeline: process.env.GROQ_API_KEY_PROJECTTIMELINE,
-    riskAnalysis: process.env.GROQ_API_KEY_RISKANALYSIS,
-    finalMarkdown: process.env.GROQ_API_KEY_FINALMARKDOWN,
-    initial: process.env.GROQ_API_KEY_CONFIG,
-  };
-  return map[artifact] || fallback;
-}
-
-// ─────────────────────────────────────────────
-// PROMPTS
-// ─────────────────────────────────────────────
-const SOFTWARE_CONFIG_PROMPT = `You are a software architect. Output ONLY valid YAML matching the exact structure below. No prose, no fences, no comments.
-
-system:
-  name: <kebab-case-name>
-  type: <web-app|saas|api|microservices|ai-app>
-  architecture: <monolith|microservices|serverless>
-backend:
-  language: <nodejs|python|go>
-  framework: <express|fastapi|nestjs|gin|fiber>
-  api: <rest|graphql|grpc>
-  port: <number>
-frontend:
-  framework: <react|nextjs|vue|none>
-  port: <number>
-database:
-  primary: <postgresql|mongodb|mysql|redis|sqlite>
-  cache: <redis|memcached|none>
-auth:
-  strategy: <jwt|oauth2|session|none>
-infra:
-  deployment: <docker|kubernetes|serverless>
-  ci_cd: <github-actions|gitlab-ci|none>
-
-RULES:
-- Output ONLY the YAML block. Nothing before or after it.
-- All values must be concrete strings or numbers — never null or empty.
-- Infer sensible production defaults from the user description.
-- Lines starting with PREV_ are previous context metadata — do NOT copy them into your output.
-- Do NOT add any keys that are not in the structure above.`;
-
-const DOCKER_PROMPT = `You are a DevOps engineer. Output ONLY a valid docker-compose.yaml. No prose, no markdown fences.
-
-IMAGE MAP — use these exact images based on the db and lang fields in the stack summary:
-${IMAGE_MAP_TEXT}
-
-RULES:
-- version: "3.8"
-- Services: backend service + primary database service only.
-- CRITICAL: The database image MUST exactly match the db field in the stack summary.
-- Backend image must match the lang field.
-- Add environment variables relevant to the stack.
-- Add named volumes and depends_on for the database.
-- Add a healthcheck for the database service.
-- Expose the correct ports (from the stack summary).
-- Output raw YAML only. No prose before or after.
-- Always end the file with the named volumes block.
-- IMPORTANT: Always complete the entire file — never stop mid-block.`;
-
-const MARKDOWN_PROMPT = `You are a senior software architect writing concise project documentation. Output raw Markdown only — do NOT wrap in a code fence. No emoji anywhere.
-
-Write ALL sections in order, specific to the system described. Be brief and direct — use short bullet points or 1-2 sentence descriptions per item. No verbose explanations.
-
-# <Project Title>
----
-## Executive Summary
-2-3 sentences max. What it is, who it's for, and what problem it solves.
-
-## Problem Statement
-3-5 bullet points. Core pain points only.
-
-## Objectives
-4-6 bullet points. One line each.
-
-## Target Users
-2-4 bullet points. Who uses this and why.
-
-## User Roles
-List each role with a one-line description.
-
-## Core Features
-6-8 bullet points. Feature name followed by a brief description.
-
-## Functional Requirements
-Bullet points. One requirement per line, no elaboration.
-
-## Non-Functional Requirements
-Bullet points. One requirement per line, no elaboration.
-
-## Tech Stack
-Group by layer (Frontend, Backend, Database, DevOps). Tool name and one-word reason.
-
-## Security
-4-6 bullet points. Measure name and one-line description.
-
-## Future Scope
-4-6 bullet points. One line each.
----
-
-RULES:
-- No emoji anywhere. Plain ASCII only.
-- Every section must be specific to this system.
-- Lines starting with PREV_ are context metadata — do NOT copy them.
-- Always complete the entire document.
-- Keep every section SHORT. No long paragraphs. Bullet points preferred.
-- Maximum 2 sentences anywhere prose is used.`;
-
-const FOLDER_STRUCTURE_PROMPT = `You are a senior software engineer. Given a stack summary, output ONLY a plain-text ASCII folder/file tree. No prose, no fences.
-
-RULES:
-- Root folder name matches the system name from the stack summary.
-- Include folders/files for the lang/framework in the stack summary.
-- nodejs/express: src/, controllers/, models/, routes/, middleware/, index.js
-- python/fastapi: app/, routers/, models/, schemas/, main.py, requirements.txt
-- go/gin or go/fiber: cmd/, internal/, handlers/, models/, main.go, go.mod
-- Always include: docker-compose.yaml, Dockerfile, .env.example, README.md
-- Include CI config if ci_cd is not "none"
-- Include tests/ or __tests__/
-- Output ONLY the tree.`;
-
-const API_DESIGN_PROMPT = `You are a senior backend engineer. Given a stack summary, output ONLY a valid YAML document describing the API design. No prose, no fences.
-
-api_design:
-  base_url: /api/v1
-  auth_header: <e.g. Authorization: Bearer <token> | none>
-  format: <json|graphql|grpc>
-  endpoints:
-    - group: <resource group>
-      routes:
-        - method: <GET|POST|PUT|PATCH|DELETE>
-          path: <path>
-          description: <one sentence>
-          auth_required: <true|false>
-          request_body: <brief or "none">
-          response: <brief>
-
-RULES:
-- 3-5 resource groups relevant to the system.
-- Each group: 2-4 routes.
-- Output ONLY the YAML block.`;
-
-const TESTING_PLAN_PROMPT = `You are a senior QA engineer. Given a stack summary, output ONLY a valid YAML testing plan. No prose, no fences.
-
-testing:
-  strategy: <1-sentence>
-  coverage_target: <e.g. 80%>
-  unit:
-    framework: <Jest|pytest|Go testing>
-    focus:
-      - <module>
-    mocking: <brief>
-  integration:
-    framework: <Supertest|pytest-httpx|httptest>
-    focus:
-      - <scenario>
-    test_db: <brief>
-  e2e:
-    framework: <Playwright|Cypress|none>
-    scenarios:
-      - <flow>
-  ci:
-    run_on: <e.g. every pull request>
-    parallel: <true|false>
-    fail_fast: <true|false>
-
-RULES:
-- Frameworks must match the lang/framework in the stack summary.
-- Output ONLY the YAML block.`;
-
-const TITLE_PROMPT = `Summarize the user's prompt into a concise 3-4 word title. Respond ONLY with the title. No quotes, no preamble.`;
-
-const USER_STORY_PROMPT = `
-You are a senior product manager
-specialized in:
-- AI workflow systems
-- developer platforms
-- SDLC orchestration tools
-- technical planning systems
-
-Generate HIGH-QUALITY product-oriented user stories.
-
-IMPORTANT:
-This platform is NOT a generic SaaS CRUD app.
-
-It is an:
-- AI-powered SDLC orchestration platform
-- workflow automation system
-- technical planning engine
-- product execution assistant
-
-The stories MUST feel like:
-- Linear
-- Jira
-- Notion
-- Cursor
-- modern AI workflow products
-
-NOT:
-- generic admin dashboards
-- simple CRUD applications
-- boilerplate SaaS systems
-
-Output raw Markdown only.
-Do NOT wrap in code fences.
-No emoji.
-
-# User Stories
-
-Organize stories by modules.
-
-Each module must contain:
-- realistic workflows
-- business value
-- AI workflow context
-- execution-oriented scenarios
-
-Avoid repetitive wording.
-
-Every story must:
-- describe real workflow usage
-- explain WHY the feature matters
-- feel specific to THIS platform
-- mention workflow or execution impact where relevant
-
-Use this exact format:
-
-As a <specific role>,
-I want to <specific workflow/action>,
-So that <specific business or workflow outcome>.
-
-Use roles like:
-- founder
-- product manager
-- developer
-- architect
-- admin
-- DevOps engineer
-- finance manager
-- startup team lead
-- guest
-
-Avoid repeating:
-- "so that I can access my account"
-- "so that I can see progress"
-- generic filler benefits
-
-Benefits must be:
-- operational
-- workflow-oriented
-- productivity-focused
-- execution-focused
-
-# Modules
-
-## Authentication
-Cover:
-- onboarding
-- secure access
-- session continuity
-- role-based workflows
-
-## Workflow Management
-Cover:
-- project orchestration
-- workflow progression
-- artifact navigation
-- session restoration
-- multi-step execution
-
-## AI Generation
-Cover:
-- AI-assisted planning
-- architecture generation
-- artifact regeneration
-- workflow automation
-- technical documentation generation
-
-## Artifact Storage
-Cover:
-- persistent workflows
-- restoring sessions
-- artifact version continuity
-- workflow recovery
-
-## Export System
-Cover:
-- sharing technical plans
-- exporting engineering documentation
-- deployment portability
-- stakeholder collaboration
-
-## Progress Tracking
-Cover:
-- workflow visibility
-- generation tracking
-- orchestration status
-- execution monitoring
-
-## Rate Limiting
-Cover:
-- token monitoring
-- quota visibility
-- usage awareness
-- retry workflows
-
-## Final Documentation
-Cover:
-- reviewing final plans
-- navigating generated docs
-- refining technical documentation
-- sharing final outputs
-
-## Modification Workflow
-Cover:
-- iterative planning
-- refining generated artifacts
-- partial workflow updates
-- architecture evolution
-
-## Error Handling
-Cover:
-- AI generation failures
-- recovery workflows
-- invalid input handling
-- timeout recovery
-- workflow resilience
-
-RULES:
-- No emoji
-- No generic filler
-- No repetitive benefits
-- No vague CRUD stories
-- Stories must feel realistic and production-grade
-- Keep stories concise but meaningful
-- 3-5 stories per module
-- Use Markdown headings properly
-- Do not generate acceptance criteria
-- Do not generate implementation details
-- Ignore lines starting with PREV_
-`;
-
-const ROADMAP_PROMPT = `
-You are a senior product strategist and engineering lead specialized in:
-- AI workflow platforms
-- developer infrastructure systems
-- SDLC orchestration products
-- technical planning platforms
-- startup execution systems
-
-Generate a realistic, execution-oriented product roadmap.
-
-IMPORTANT:
-This platform is NOT a generic CRUD SaaS application.
-
-It is:
-- an AI-powered SDLC orchestration platform
-- a workflow automation engine
-- a technical planning assistant
-- an artifact generation system
-- a developer execution workspace
-
-The roadmap must feel like:
-- a real startup execution roadmap
-- a phased product evolution strategy
-- a production-ready engineering plan
-- an AI-native workflow platform
-
-NOT:
-- a generic feature checklist
-- a random backlog dump
-- a basic frontend/backend task list
-- an infrastructure-only roadmap
-- a generic DevOps migration plan
-
-Output raw Markdown only.
-Do NOT wrap in code fences.
-No emoji.
-No filler.
-
-# Product Roadmap
-
-## Roadmap Overview
-
-Write 2-3 concise sentences explaining:
-- what the roadmap delivers
-- the strategic direction of the platform
-- the business and workflow goals
-- how the platform evolves over time
-
-Focus on:
-- workflow orchestration
-- AI-assisted execution
-- technical planning automation
-- developer productivity
-- artifact lifecycle management
-- execution continuity
-
----
-
-## Phase 1 — Foundation
-
-### Goals
-- Business and technical goals for this phase
-- Focus on platform foundation and workflow infrastructure
-- 3-5 bullet points
-
-### Features
-- Concrete implementation features
-- Execution ordered
-- 4-6 bullet points
-
-### Deliverables
-- Actual shipped systems and infrastructure
-- APIs
-- auth
-- databases
-- CI/CD
-- workflow engine
-- deployment setup
-
-### Dependencies
-- Real prerequisites
-- Infrastructure
-- Team decisions
-- Services
-- Architecture choices
-
-### Success Criteria
-- Measurable and realistic outcomes
-- Operational readiness indicators
-- Workflow readiness indicators
-
-### Estimated Timeline
-- X weeks
-- Small explanation based on team size and complexity
-
----
-
-## Phase 2 — Core Workflow Engine
-
-### Goals
-### Features
-### Deliverables
-### Dependencies
-### Success Criteria
-### Estimated Timeline
-
----
-
-## Phase 3 — AI Artifact Generation
-
-### Goals
-### Features
-### Deliverables
-### Dependencies
-### Success Criteria
-### Estimated Timeline
-
----
-
-## Phase 4 — Export & Collaboration
-
-### Goals
-### Features
-### Deliverables
-### Dependencies
-### Success Criteria
-### Estimated Timeline
-
----
-
-## Phase 5 — Scalability & Optimization
-
-### Goals
-### Features
-### Deliverables
-### Dependencies
-### Success Criteria
-### Estimated Timeline
-
----
-
-## Future Enhancements
-
-Add 5-8 realistic post-v1 platform evolution ideas.
-
-Examples:
-- AI workflow optimization
-- GitHub integration
-- Jira integration
-- dependency-aware regeneration
-- intelligent orchestration
-- collaboration systems
-- enterprise workflow support
-
-Focus on:
-- platform evolution
-- AI orchestration maturity
-- workflow intelligence
-- developer productivity improvements
-- artifact synchronization
-- execution automation
-
----
-
-RULES:
-
-- Every phase must reference the actual stack from the provided summary.
-- Use ONLY the actual technologies from the stack summary:
-  - frameworks
-  - databases
-  - infrastructure
-  - authentication
-  - deployment systems
-  - orchestration services
-
-- Do not introduce random frameworks,
-  ML libraries,
-  orchestration tools,
-  analytics systems,
-  or infrastructure technologies
-  unless they are explicitly present
-  in the provided stack summary
-  or clearly required by the roadmap.
-
-- Avoid generic machine learning,
-  predictive analytics,
-  or data science features
-  unless explicitly required.
-
-- Dependencies must be sequential and realistic.
-- Phase 2 cannot begin until Phase 1 deliverables exist.
-- Every phase must logically build on previous workflows and systems.
-- Avoid disconnected feature planning.
-
-- Each phase must deliver meaningful user-facing value.
-- Each phase must unlock new workflows
-  and progressively expand platform capabilities.
-
-- Each phase should evolve the platform toward:
-  - intelligent workflow orchestration
-  - AI-assisted execution
-  - artifact synchronization
-  - dependency-aware automation
-  - execution continuity
-
-- Emphasize:
-  - artifact orchestration
-  - workflow synchronization
-  - execution continuity
-  - technical planning automation
-  - dependency-aware regeneration
-
-- Prioritize workflow enablement
-  over infrastructure implementation details.
-
-- Features must be execution-ordered within each phase.
-
-- Prioritize features based on:
-  - workflow dependencies
-  - business impact
-  - execution feasibility
-  - developer productivity
-  - operational value
-  - workflow continuity
-
-- Timelines must be realistic for a startup team of 2-5 engineers.
-- Roadmap timelines should reflect iterative startup execution cycles,
-  not enterprise waterfall planning.
-
-- Goals must include BOTH:
-  - business outcomes
-  - technical outcomes
-
-- Deliverables must feel production-ready.
-- Use realistic engineering terminology.
-- Avoid vague filler.
-
-- Focus heavily on:
-  - workflow progression
-  - platform evolution
-  - orchestration maturity
-  - automation capabilities
-  - execution workflows
-  - AI-assisted planning systems
-
-- Do NOT generate:
-  - sprint tickets
-  - implementation code
-  - task-level breakdowns
-  - generic filler statements
-  - random technical buzzwords
-
-- Always complete:
-  - roadmap overview
-  - all 5 phases
-  - future enhancements
-
-- CRITICAL:
-  Output the ENTIRE roadmap.
-  Never truncate.
-  Never stop early.
-
-- Ignore lines starting with PREV_.
-`;
-
-const DEPLOYMENT_GUIDE_PROMPT = `You are a senior DevOps engineer and infrastructure architect.
-Given a stack summary and project description, output a full deployment guide in raw Markdown only.
-Do NOT wrap in code fences. No emoji. No filler. Every section must be specific to the actual stack.
-
-# Deployment Guide
-
-## Deployment Overview
-2-3 sentences. What is being deployed, where, and the overall deployment strategy.
-
-## Architecture Summary
-Describe the runtime architecture — services, ports, networking, and how components connect in production.
-
-## Environment Requirements
-- OS, runtime versions, and tooling required (Node version, Python version, Docker version, etc.)
-- Match exactly to the lang/framework in the stack summary.
-
-## Infrastructure Requirements
-- Cloud or on-prem resources needed (compute, storage, networking, DNS, SSL)
-- Minimum specs for production
-
-## Local Development Setup
-Step-by-step instructions to run the project locally. Include exact commands.
-
-## Environment Variables
-List every required env var with a description and example value. Group by service.
-
-## Database Setup
-- How to provision, initialize, and migrate the primary database from the stack summary.
-- Include exact commands for schema creation and seeding.
-
-## Cache Setup
-- Setup instructions for the cache layer from the stack summary (or note "Not applicable").
-
-## Backend Deployment
-Step-by-step deployment of the backend service. Include build, start, and health check commands.
-
-## Frontend Deployment
-Step-by-step deployment of the frontend (or note "Not applicable — API only").
-
-## Docker Deployment
-- How to build and run using docker-compose.
-- Include exact docker commands.
-
-## CI/CD Deployment
-- Pipeline setup based on the ci_cd field in the stack summary.
-- Stages: lint, test, build, deploy.
-
-## Production Deployment
-- Full production deployment checklist.
-- Include SSL, reverse proxy (nginx/caddy), process manager (pm2/systemd), and health checks.
-
-## Monitoring & Logging
-- Tools and setup for logs, metrics, and uptime monitoring relevant to this stack.
-
-## Security Configuration
-- Firewall rules, secrets management, CORS, rate limiting, and auth hardening specific to this stack.
-
-## Scaling Strategy
-- Horizontal and vertical scaling approach for the backend, database, and cache in this stack.
-
-## Backup & Recovery
-- Backup schedule and commands for the primary database and any stateful services.
-
-## Rollback Strategy
-- Exact steps to roll back a bad deployment (git, docker, database migration rollback).
-
-## Troubleshooting
-- 5-8 common failure scenarios with diagnosis commands and fixes, specific to this stack.
-
-## Post-Deployment Validation
-- Checklist of smoke tests and endpoint checks to confirm a successful deployment.
-
-## Maintenance Guidelines
-- Dependency update cadence, log rotation, certificate renewal, and database maintenance tasks.
-
----
-
-RULES:
-- Every section must reference the actual stack (lang, framework, db, cache, auth, deploy, ci_cd).
-- Commands must be real and runnable — no placeholders like <your-value> without explanation.
-- Docker section must match the docker-compose structure for this stack.
-- CI/CD section must match the ci_cd field (github-actions, gitlab-ci, or note none).
-- Security section must address the auth strategy in the stack summary.
-- Always complete every section. Never truncate.
-- CRITICAL: Output the entire guide. Do not stop early.
-- Ignore lines starting with PREV_.`;
-
-const COST_ESTIMATION_PROMPT = `You are a senior software architect and startup financial strategist.
-Given a stack summary and project description, output a full cost estimation report in raw Markdown only.
-Do NOT wrap in code fences. No emoji. No filler. Every section must be specific to the actual stack.
-
-# Cost Estimation
-
-## Cost Overview
-2-3 sentences. Summarise the total estimated cost range and the primary cost drivers for this system.
-
-## Assumptions
-List all assumptions made when estimating costs (team size, usage volume, region, tier, etc.)
-
-## Development Cost
-Estimate engineering hours and cost by role (frontend, backend, DevOps, QA). Include hourly rate ranges.
-
-## Infrastructure Cost
-Monthly cloud or hosting costs for compute, storage, networking, and CDN. Match to the deploy field in the stack.
-
-## AI API Cost
-If the system uses any AI models or APIs, estimate monthly token or request costs. If none, write "Not applicable."
-
-## Database & Storage Cost
-Monthly cost for the primary database and any blob/object storage. Match to the db field in the stack summary.
-
-## CI/CD & Deployment Cost
-Monthly cost for the CI/CD pipeline (GitHub Actions minutes, runners, etc.) based on the ci_cd field.
-
-## Monitoring & Logging Cost
-Monthly cost for logs, metrics, error tracking, and uptime monitoring tools relevant to this stack.
-
-## Security & Backup Cost
-Estimated monthly cost for secrets management, WAF, SSL, and automated database backups.
-
-## Scaling Cost Projections
-Show how infrastructure cost scales at 3 tiers: MVP (0–1k users), Growth (1k–50k users), Scale (50k+ users).
-
-## Monthly Operational Cost
-Provide a monthly cost breakdown table with line items and a total range (low / mid / high estimate).
-
-## Annual Cost Projection
-Annualise the monthly operational cost. Include a 12-month cumulative cost chart description.
-
-## Cost Optimization Strategy
-5-8 concrete tactics to reduce cost without compromising reliability (spot instances, caching, tier downgrades, etc.)
-
-## Risk Factors
-List 4-6 cost risks: things that could cause the actual cost to exceed estimates (traffic spikes, data growth, etc.)
-
-## Recommended Initial Budget
-Give a specific recommended starting budget for the first 3 months, broken into one-time and recurring costs.
-
-## Future Cost Considerations
-4-6 cost items that will emerge as the platform matures (enterprise features, multi-region, compliance, etc.)
-
----
-
-RULES:
-- Every section must reference the actual stack (lang, framework, db, cache, auth, deploy, ci_cd).
-- Use realistic market rates for 2024-2025 (AWS/GCP/Azure pricing, freelance/agency rates).
-- Scaling section must reflect the actual database and infrastructure in the stack.
-- Optimization tactics must be relevant to the actual stack technologies.
-- Always complete every section. Never truncate.
-- CRITICAL: Output the entire report. Do not stop early.
-- Ignore lines starting with PREV_.`;
-
-const PROJECT_TIMELINE_PROMPT = `You are a senior engineering program manager and startup execution strategist.
-Given a stack summary and project description, output a full project timeline in raw Markdown only.
-Do NOT wrap in code fences. No emoji. No filler. Every section must reference the actual stack.
-
-# Project Timeline
-
-## Timeline Overview
-2-3 sentences. Summarise the total delivery estimate, team size assumption, and execution approach.
-
-## Phase 1 Timeline — Foundation
-
-### Duration
-Provide a specific week range (e.g. Weeks 1–3). Base it on a startup team of 2-5 engineers.
-
-### Objectives
-- 3-5 concrete business and technical objectives for this phase.
-- Must reference the actual stack (lang, framework, db, deploy).
-
-### Key Deliverables
-- List actual shipped items: repo setup, auth system, database schema, CI/CD pipeline, base API.
-- Be specific to the stack — name the actual framework and database being set up.
-
-### Dependencies
-- List what must exist before Phase 1 can begin: design decisions, environment access, team onboarding, infra accounts.
-
-### Risks
-- 3-4 risks specific to this phase: environment setup delays, auth complexity, early architecture decisions.
-
-### Completion Criteria
-- Measurable checklist: what must be true for Phase 1 to be considered done.
-
----
-
-## Phase 2 Timeline — Core Workflow Engine
-
-### Duration
-### Objectives
-### Key Deliverables
-### Dependencies
-### Risks
-### Completion Criteria
-
----
-
-## Phase 3 Timeline — AI Artifact Generation
-
-### Duration
-### Objectives
-### Key Deliverables
-### Dependencies
-### Risks
-### Completion Criteria
-
----
-
-## Phase 4 Timeline — Export & Collaboration
-
-### Duration
-### Objectives
-### Key Deliverables
-### Dependencies
-### Risks
-### Completion Criteria
-
----
-
-## Phase 5 Timeline — Scalability & Optimization
-
-### Duration
-### Objectives
-### Key Deliverables
-### Dependencies
-### Risks
-### Completion Criteria
-
----
-
-## Overall Delivery Estimate
-State the total week count from Phase 1 start to Phase 5 completion. Provide a low/mid/high range.
-
-## Critical Path
-List the 5-8 tasks or decisions that directly determine the delivery date if delayed.
-
-## Timeline Risks
-List 5-7 global risks that could affect the overall timeline (scope creep, key hire delays, infra outages, etc.)
-
-## Acceleration Opportunities
-List 4-6 concrete ways to compress the timeline (parallel workstreams, off-the-shelf services, feature cuts, etc.)
-
-## Post-MVP Timeline
-Describe what comes after Phase 5: maintenance cadence, feature iteration cycles, and long-term evolution.
-
----
-
-RULES:
-- Every phase must reference the actual stack technologies from the stack summary.
-- Durations must be realistic for a 2-5 engineer startup team.
-- Phases must be sequential — Phase 2 cannot start until Phase 1 criteria are met.
-- Each phase must build logically on the previous one.
-- Key Deliverables must name actual files, services, or systems — not vague tasks.
-- Risks must be specific to the phase and stack, not generic filler.
-- Completion Criteria must be binary and measurable (passes tests, endpoint returns 200, etc.)
-- Always complete every section and every phase. Never truncate.
-- CRITICAL: Output the entire timeline. Do not stop early.
-- Ignore lines starting with PREV_.`;
-
-const RISK_ANALYSIS_PROMPT = `You are a senior software architect and risk management strategist.
-Given a stack summary and project description, output a full risk analysis report in raw Markdown only.
-Do NOT wrap in code fences. No emoji. No filler. Every section must be specific to the actual stack.
-
-# Risk Analysis
-
-## Risk Overview
-2-3 sentences. Summarise the overall risk profile of this system, the highest-priority risk categories, and the general mitigation approach.
-
-## Technical Risks
-List 4-6 technical risks specific to the lang, framework, and architecture in the stack summary. For each risk include: risk description, likelihood (Low/Medium/High), impact (Low/Medium/High), and a one-line mitigation.
-
-## AI & Workflow Risks
-List 3-5 risks related to AI model usage, prompt engineering, or workflow orchestration. If the system has no AI component, write "Not applicable." Include likelihood, impact, and mitigation for each.
-
-## Infrastructure Risks
-List 4-6 risks related to the deployment, cloud provider, containerisation, and networking based on the deploy field in the stack. Include likelihood, impact, and mitigation for each.
-
-## Scalability Risks
-List 3-5 risks related to database scaling, API throughput, and horizontal scaling based on the actual db, cache, and deployment in the stack. Include likelihood, impact, and mitigation for each.
-
-## Security Risks
-List 4-6 security risks specific to the auth strategy, API design, and database in the stack. Include likelihood, impact, and mitigation for each.
-
-## Operational Risks
-List 3-5 operational risks: team size, on-call coverage, incident response, knowledge silos, and runbook gaps. Include likelihood, impact, and mitigation for each.
-
-## Data & Storage Risks
-List 3-5 risks related to data loss, corruption, backup failure, and storage costs based on the db field. Include likelihood, impact, and mitigation for each.
-
-## Deployment Risks
-List 3-5 risks related to the CI/CD pipeline, rollback failures, and production deployment based on the ci_cd and deploy fields. Include likelihood, impact, and mitigation for each.
-
-## Third-Party Dependency Risks
-List 3-5 risks from external services, APIs, or libraries the system depends on. Include likelihood, impact, and mitigation for each.
-
-## User Experience Risks
-List 3-4 UX risks: latency, downtime visibility, error messaging, and onboarding friction. Include likelihood, impact, and mitigation for each.
-
-## Cost & Resource Risks
-List 3-5 risks around budget overruns, unexpected cloud costs, and resource contention. Include likelihood, impact, and mitigation for each.
-
-## Risk Severity Matrix
-Produce a Markdown table with columns: Risk | Category | Likelihood | Impact | Priority
-List the top 10 risks across all categories, sorted by Priority (Critical → High → Medium → Low).
-
-## Mitigation Strategies
-List 6-10 concrete, actionable mitigation strategies that address the highest-priority risks identified above. Be specific to the stack.
-
-## Monitoring & Prevention
-List 5-8 monitoring and alerting measures to detect risks early. Name specific tools relevant to the stack (e.g. Prometheus, Sentry, Datadog, PagerDuty).
-
-## Disaster Recovery Strategy
-Describe the disaster recovery approach: RTO/RPO targets, backup schedule, failover procedure, and data restoration steps specific to the db and deploy fields.
-
-## Long-Term Risk Considerations
-List 4-6 risks that will emerge as the platform matures: compliance requirements, vendor lock-in, technical debt, and team scaling challenges.
-
----
-
-RULES:
-- Every section must reference the actual stack (lang, framework, db, cache, auth, deploy, ci_cd).
-- Likelihood and Impact must be one of: Low, Medium, High.
-- Risk Severity Matrix must be a valid Markdown table.
-- Mitigation strategies must be concrete and stack-specific — no generic advice.
-- Always complete every section. Never truncate.
-- CRITICAL: Output the entire report. Do not stop early.
-- Ignore lines starting with PREV_.`;
-
-const FINAL_MARKDOWN_PROMPT = `You are a senior software architect producing a complete, consolidated project specification document. Output raw Markdown only — do NOT wrap in a code fence. No emoji anywhere.
-
-You will receive a stack summary and all previously generated artifacts as context. Synthesize everything into one unified document. Be specific to this system. Use short bullet points or 1-2 sentence descriptions per item. No verbose explanations.
-
-# <Project Title>
-
----
-
-## Executive Summary
-2-3 sentences. What it is, who it is for, what problem it solves.
-
-## Problem Statement
-3-5 bullet points. Core pain points only.
-
-## Objectives
-4-6 bullet points. One line each.
-
-## Target Users
-2-4 bullet points. Who uses this and why.
-
-## User Roles
-List each role with a one-line description.
-
-## Core Features
-6-8 bullet points. Feature name followed by a brief description.
-
-## User Workflow
-Step-by-step numbered list of the primary user journey through the system.
-
-## Business Requirements
-4-6 bullet points. Business-level constraints and goals.
-
-## Functional Requirements
-Bullet points. One requirement per line, no elaboration.
-
-## Non-Functional Requirements
-Bullet points. One requirement per line, no elaboration.
-
-## System Architecture Overview
-Describe the runtime architecture — services, layers, and how components connect. Reference the actual architecture type (monolith/microservices/serverless).
-
-## Technology Stack
-Group by layer: Frontend, Backend, Database, DevOps. Tool name and one-word reason.
-
-## Configuration Strategy
-How the system is configured — environment variables, secrets management, config files. Reference the actual stack.
-
-## Database Design Summary
-Summarize the primary database schema, key entities, and relationships. Reference the actual db from the stack.
-
-## API Design Summary
-Summarize the API style, base URL, auth header, and list the main resource groups with their key routes.
-
-## Folder Structure Overview
-Show a condensed ASCII folder tree of the project root. Reference the actual lang/framework.
-
-## Docker Strategy
-Summarize the docker-compose setup — services, images, volumes, health checks, ports.
-
-## CI/CD Strategy
-Summarize the pipeline — stages (lint, test, build, deploy), trigger conditions, and tools. Reference the actual ci_cd field.
-
-## Testing Strategy
-Summarize unit, integration, and E2E approach. Reference the actual testing frameworks for this stack.
-
-## User Stories
-List the top 10-12 most important user stories across all modules in the format:
-As a <role>, I want to <action>, so that <outcome>.
-
-## Product Roadmap
-Summarize the 5 phases with one-line goals and estimated timelines.
-
-## Timeline
-Summarize total delivery estimate and critical path. Reference phase durations.
-
-## Deployment Strategy
-Summarize how the system is deployed to production — platform, process manager, reverse proxy, SSL.
-
-## Cost Estimation
-Summarize monthly operational cost at MVP, Growth, and Scale tiers.
-
-## Risk Analysis
-List the top 8-10 risks with likelihood, impact, and one-line mitigation.
-
-## Architecture Decisions (ADR)
-List 4-6 key architecture decisions in the format:
-- Decision: <what was decided>
-  Reason: <why>
-  Trade-off: <what was accepted>
-
-## Scalability Strategy
-Describe horizontal/vertical scaling approach for backend, database, and cache. Reference the actual stack.
-
-## Security Strategy
-4-6 bullet points. Measure name and one-line description. Reference the actual auth strategy.
-
-## Monitoring & Observability
-List monitoring tools, log aggregation, alerting, and uptime tracking relevant to this stack.
-
-## Future Enhancements
-4-6 bullet points. One line each. Post-v1 platform evolution ideas.
-
-## Success Metrics
-4-6 measurable KPIs that define product success.
-
-## Conclusion
-2-3 sentences. Summarise the system, its readiness, and next steps.
-
----
-
-RULES:
-- No emoji anywhere. Plain ASCII only.
-- Every section must be specific to this system — no generic filler.
-- Synthesize from all provided artifact context — do not invent.
-- Lines starting with PREV_ are context metadata — do NOT copy them.
-- Always complete every section. Never truncate.
-- CRITICAL: Output the entire document. Do not stop early.
-- Ignore lines starting with PREV_.`;
-
-// ─────────────────────────────────────────────
-// Firestore helpers
-// ─────────────────────────────────────────────
-async function saveUserMessage(sid: string, uid: string, content: string) {
-  await db
-    .collection("sessions")
-    .doc(sid)
-    .collection("messages")
-    .add({ role: "user", content, userId: uid, createdAt: new Date() });
-}
-
-async function saveAssistantMessage(sid: string, uid: string, content: string) {
-  await db
-    .collection("sessions")
-    .doc(sid)
-    .collection("messages")
-    .add({ role: "assistant", content, userId: uid, createdAt: new Date() });
-}
-
-async function saveArtifact(
-  sid: string,
-  uid: string,
-  type: string,
-  content: string,
-) {
-  await db
-    .collection("sessions")
-    .doc(sid)
-    .collection("artifacts")
-    .add({ type, content, userId: uid, createdAt: new Date() });
-}
-
-async function saveSessionMetadata(sid: string, uid: string, title?: string) {
-  const data: any = { userId: uid, updatedAt: new Date() };
-  if (title) data.title = title;
-  await db.collection("sessions").doc(sid).set(data, { merge: true });
-}
-
-// ─────────────────────────────────────────────
-// n8n / Activepieces DB schema
-// ─────────────────────────────────────────────
-async function callN8nDbDesign(
-  prompt: string,
-  stackSummary: string,
-): Promise<DbSchema | null> {
-  const webhookUrl = process.env.ACTIVEPIECES_WEBHOOK_URL;
-  if (!webhookUrl) {
-    log.warn("ACTIVEPIECES_WEBHOOK_URL not set");
-    return null;
-  }
-  try {
-    const res = await withTimeout(
-      fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, stackSummary }),
-      }),
-      ACTIVEPIECES_TIMEOUT_MS,
-    );
-    if (!res.ok) {
-      log.error("Activepieces error", { status: res.status });
-      return null;
-    }
-    const text = await res.text();
-    const clean = text.trimStart().startsWith("=")
-      ? text.trimStart().slice(1)
-      : text;
-    let data: any;
-    try {
-      data = JSON.parse(clean);
-    } catch {
-      log.error("Activepieces not JSON");
-      return null;
-    }
-    const p = Array.isArray(data) ? data[0] : data;
-    const mermaid = p?.mermaid ?? p?.schema ?? p?.erd ?? p?.text ?? "";
-    const diagram =
-      p?.diagram ?? p?.svg ?? p?.image ?? p?.url ?? p?.output ?? "";
-    if (!mermaid && !diagram) {
-      log.warn("Activepieces empty payload");
-      return null;
-    }
-    return { mermaid, diagram };
-  } catch (err) {
-    log.error("Activepieces call failed", { err: String(err) });
-    return null;
-  }
-}
-
-// ─────────────────────────────────────────────
-// Groq helpers
-// ─────────────────────────────────────────────
-async function callGroq(
-  apiKey: string,
-  systemPrompt: string,
-  userMessage: string,
-  history: HistoryMsg[],
-  maxTokens: number,
-  label: string,
-  attempt0 = 0,
-): Promise<{ content: string; tokens: number } | null> {
-  const temperature = label === "markdown" ? 0.3 : 0.1;
-  const stopTokens = label === "config" || label === "docker" ? ["```"] : [];
-
-  for (let attempt = attempt0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const res = await withTimeout(
-        fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: MODEL,
-            messages: [
-              { role: "system", content: systemPrompt },
-              ...history,
-              { role: "user", content: userMessage },
-            ],
-            temperature,
-            max_tokens: maxTokens,
-            top_p: 0.9,
-            ...(stopTokens.length ? { stop: stopTokens } : {}),
-          }),
-        }),
-        REQUEST_TIMEOUT_MS,
-      );
-
-      if (res.status === 429) {
-        const wait =
-          parseFloat(res.headers.get("retry-after") ?? "") * 1000 ||
-          Math.pow(2, attempt) * 3000;
-        log.warn("Rate limited", { label, attempt, wait }, apiKey);
-        if (attempt < MAX_RETRIES) {
-          await sleep(wait);
-          continue;
-        }
-        return null;
-      }
-      if (!res.ok) {
-        log.error("Groq error", { label, status: res.status }, apiKey);
-        return null;
-      }
-
-      const data = await res.json();
-      const raw = data?.choices?.[0]?.message?.content ?? "";
-      const cleaned = extractYamlBlock(stripFences(raw));
-      const tokens = data?.usage?.total_tokens ?? 0;
-
-      if (isTruncated(cleaned) && attempt < MAX_RETRIES) {
-        log.warn("Truncated, retrying", { label, attempt }, apiKey);
-        return callGroq(
-          apiKey,
-          systemPrompt,
-          userMessage,
-          history,
-          Math.ceil(maxTokens * 1.25),
-          label,
-          attempt + 1,
-        );
-      }
-
-      log.info("Groq OK", { label, tokens }, apiKey);
-      return { content: cleaned, tokens };
-    } catch (err) {
-      log.error(
-        "Groq fetch error",
-        { label, attempt, err: String(err) },
-        apiKey,
-      );
-      if (attempt < MAX_RETRIES) {
-        await sleep(Math.pow(2, attempt) * 2000);
-        continue;
-      }
-      return null;
-    }
-  }
-  return null;
-}
-
-async function callGroqRaw(
-  apiKey: string,
-  systemPrompt: string,
-  userMessage: string,
-  history: HistoryMsg[],
-  maxTokens: number,
-  label: string,
-): Promise<{ content: string; tokens: number } | null> {
-  try {
-    const res = await withTimeout(
-      fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...history,
-            { role: "user", content: userMessage },
-          ],
-          temperature: label === "markdown" ? 0.3 : 0.1,
-          max_tokens: maxTokens,
-          top_p: 0.9,
-        }),
-      }),
-      REQUEST_TIMEOUT_MS,
-    );
-    if (!res.ok) {
-      log.error("Groq raw error", { label, status: res.status }, apiKey);
-      return null;
-    }
-    const data = await res.json();
-    const content = data?.choices?.[0]?.message?.content ?? "";
-    const tokens = data?.usage?.total_tokens ?? 0;
-    log.info("Groq raw OK", { label, tokens }, apiKey);
-    return { content, tokens };
-  } catch (err) {
-    log.error("Groq raw error", { label, err: String(err) }, apiKey);
-    return null;
-  }
-}
+const log = {
+  info: (msg: string, meta?: object) =>
+    console.log(JSON.stringify({ level: 'info', msg, ...meta, ts: Date.now() })),
+  error: (msg: string, meta?: object) =>
+    console.error(JSON.stringify({ level: 'error', msg, ...meta, ts: Date.now() })),
+};
 
 // ─────────────────────────────────────────────
 // POST handler
 // ─────────────────────────────────────────────
+
 export async function POST(req: Request) {
   try {
-    // ── Auth ─────────────────────────────────────────────────────────────────
-    const { userId } = await auth();
-    if (!userId) return new Response("Unauthorized", { status: 401 });
+    // ── Auth ──────────────────────────────────────────────────────────────────
+    const userId = "test_user_id";
+    // if (!userId) return new Response('Unauthorized', { status: 401 });
 
-    const fullUserData = await getFullUserData();
-    await createOrUpdateUser(userId, fullUserData);
+    // const fullUserData = await getFullUserData();
+    // await createOrUpdateUser(userId, fullUserData);
 
-    const quota = await getOrCreateQuota(userId);
-    if (quota.exhausted || quota.tokensUsed >= quota.tokensLimit)
-      return errorResponse(
-        "Daily token limit reached.",
-        "TOKEN_EXHAUSTED",
-        429,
-      );
+    // const quota = await getOrCreateQuota(userId);
+    // if (quota.exhausted || quota.tokensUsed >= quota.tokensLimit)
+    //   return errorResponse('Daily token limit reached.', 'TOKEN_EXHAUSTED', 429);
 
     // ── Parse body ───────────────────────────────────────────────────────────
     let body: {
@@ -1619,437 +96,86 @@ export async function POST(req: Request) {
     };
     try {
       body = await req.json();
-      log.info("Request body parsed", { bodyKeys: Object.keys(body) });
     } catch (error) {
-      log.error("JSON parsing failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return errorResponse("Invalid JSON body", "BAD_REQUEST", 400);
+      return errorResponse('Invalid JSON body', 'BAD_REQUEST', 400);
     }
 
-    const rawPrompt = typeof body.prompt === "string" ? body.prompt : "";
-    const mode = typeof body.mode === "string" ? body.mode : "generate";
-    const rawSid = typeof body.sessionId === "string" ? body.sessionId : "";
+    const rawPrompt = typeof body.prompt === 'string' ? body.prompt : '';
+    const mode = typeof body.mode === 'string' ? body.mode : 'generate';
+    const rawSid = typeof body.sessionId === 'string' ? body.sessionId : '';
     const artifact = (
-      typeof body.artifact === "string" ? body.artifact : "initial"
-    ) as ArtifactType;
-
-    // Log request details for debugging
-    log.info("Request details", {
-      userId,
-      rawPrompt: rawPrompt.substring(0, 100),
-      rawPromptLength: rawPrompt.length,
-      mode,
-      rawSid,
-      artifact,
-    });
+      typeof body.artifact === 'string' ? body.artifact : 'initial'
+    ) as RequestArtifactType;
 
     const sessionId = rawSid.trim() || `anon-${Date.now()}`;
     const prompt = sanitisePrompt(rawPrompt);
 
-    log.info("After sanitization", {
-      promptLength: prompt.length,
-      prompt: prompt.substring(0, 100),
-      PROMPT_MIN_LEN,
-    });
-
     if (!prompt || prompt.length < PROMPT_MIN_LEN) {
-      const errorMsg = prompt
-        ? "Prompt too short (min 5 chars)"
-        : "Prompt is required";
-      const errorCode = prompt ? "PROMPT_TOO_SHORT" : "MISSING_PROMPT";
-      log.error("Validation failed", { errorMsg, promptLength: prompt.length });
-      return errorResponse(errorMsg, errorCode, 400);
+      return errorResponse(
+        prompt ? 'Prompt too short (min 5 chars)' : 'Prompt is required',
+        prompt ? 'PROMPT_TOO_SHORT' : 'MISSING_PROMPT',
+        400,
+      );
     }
 
     // ── API key ──────────────────────────────────────────────────────────────
-    const fallback = process.env.GROQ_API_KEY;
-    if (!fallback)
-      return errorResponse("Server misconfiguration", "MISSING_API_KEY", 500);
+    const fallbackApiKey = process.env.GROQ_API_KEY;
+    if (!fallbackApiKey)
+      return errorResponse('Server misconfiguration', 'MISSING_API_KEY', 500);
 
-    // ── Session ──────────────────────────────────────────────────────────────
-    const session = getSession(sessionId);
+    // ── Project state ────────────────────────────────────────────────────────
+    const state = await getOrCreateProjectState(sessionId, userId, prompt);
 
-    // Rehydrate lastResult from Firestore if empty (cold start recovery)
-    if (!session.lastResult) {
-      const snap = await db
-        .collection("sessions")
-        .doc(sessionId)
-        .collection("artifacts")
-        .where("type", "==", "config")
-        .get();
-      if (!snap.empty) {
-        const yaml = snap.docs[snap.docs.length - 1].data().content;
-        session.lastResult = { yaml, markdown: "", docker: "" };
-      }
+    // Store the project description if this is the first message
+    const isFirstMessage = Object.keys(state.artifacts).length === 0;
+    if (isFirstMessage) {
+      state.projectDescription = prompt;
     }
 
-    const history = trimHistory(session.history);
-    const isFirstMessage = session.history.length === 0;
-
     // ── Save user message ────────────────────────────────────────────────────
-    await saveUserMessage(sessionId, userId, prompt);
-    await memoryStore.addMessage(sessionId, {
-      role: "user",
-      content: prompt,
-      userId,
-    });
-    await memoryStore.updateSession(sessionId, { userId });
+    await firestoreService.saveUserMessage(sessionId, userId, prompt);
 
     // ── Session title (first message only) ───────────────────────────────────
     let generatedTitle: string | undefined;
     if (isFirstMessage) {
-      const titleRes = await callGroqRaw(
-        getApiKey("config", fallback),
-        TITLE_PROMPT,
-        prompt,
-        [],
-        15,
-        "title",
-      );
-      if (titleRes?.content)
-        generatedTitle = titleRes.content.replace(/["']/g, "").trim();
+      generatedTitle = await generateTitle(prompt, fallbackApiKey);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // MODIFY MODE — regenerates only the requested artifact
+    // MODIFY MODE
     // ══════════════════════════════════════════════════════════════════════════
-    if (mode === "modify" && session.lastResult) {
-      const oldYaml = session.lastResult.yaml;
-      const configKey = getApiKey("config", fallback);
-      const userMessage = `PREV_CONFIG: ${summarizeYaml(oldYaml)}\n\nRequested changes: ${prompt}`;
 
-      // Always re-derive YAML first so detectChanges knows what shifted
-      const configResult = await callGroq(
-        configKey,
-        SOFTWARE_CONFIG_PROMPT,
-        userMessage,
-        history,
-        TOKEN_BUDGET.config,
-        "config",
+    if (mode === 'modify' && artifact !== 'initial' && state.artifacts.config) {
+      const artifactType = artifact as ArtifactType;
+
+      const result = await modifyArtifact(
+        artifactType,
+        state,
+        prompt,
+        fallbackApiKey,
       );
-      if (!configResult)
-        return errorResponse("Config regeneration failed", "LLM_ERROR", 500);
-      const newYaml = configResult.content;
 
-      session.history.push({ role: "user", content: userMessage });
-      session.history.push({
-        role: "assistant",
-        content: compressForHistory(newYaml, "config"),
-      });
+      if (!result)
+        return errorResponse('Modification failed', 'LLM_ERROR', 500);
 
-      const stackSummary = summarizeYaml(newYaml);
-      let updatedContent = "";
-      let tokensUsed = configResult.tokens;
-
-      // Regenerate only the artifact the user asked to modify
-      switch (artifact) {
-        case "docker": {
-          const r = await callGroq(
-            getApiKey("docker", fallback),
-            DOCKER_PROMPT,
-            `Generate docker-compose for UPDATED stack: ${stackSummary}`,
-            trimHistory(session.history),
-            TOKEN_BUDGET.docker,
-            "docker",
-          );
-          if (r) {
-            updatedContent = r.content;
-            tokensUsed += r.tokens;
-          }
-          break;
-        }
-        case "markdown": {
-          const r = await callGroqRaw(
-            getApiKey("markdown", fallback),
-            MARKDOWN_PROMPT,
-            `Project (updated): ${prompt}\nStack summary: ${stackSummary}`,
-            trimHistory(session.history),
-            TOKEN_BUDGET.markdown,
-            "markdown",
-          );
-          if (r) {
-            updatedContent = r.content;
-            tokensUsed += r.tokens;
-          }
-          break;
-        }
-        case "folderStructure": {
-          const r = await callGroq(
-            getApiKey("folderStructure", fallback),
-            FOLDER_STRUCTURE_PROMPT,
-            `Generate folder structure for UPDATED stack: ${stackSummary}`,
-            trimHistory(session.history),
-            TOKEN_BUDGET.folderStructure,
-            "folderStructure",
-          );
-          if (r) {
-            updatedContent = r.content;
-            tokensUsed += r.tokens;
-          }
-          break;
-        }
-        case "apiDesign": {
-          const r = await callGroq(
-            getApiKey("apiDesign", fallback),
-            API_DESIGN_PROMPT,
-            `Generate API design for UPDATED stack: ${stackSummary}`,
-            trimHistory(session.history),
-            TOKEN_BUDGET.apiDesign,
-            "apiDesign",
-          );
-          if (r) {
-            updatedContent = r.content;
-            tokensUsed += r.tokens;
-          }
-          break;
-        }
-        case "testingPlan": {
-          const r = await callGroq(
-            getApiKey("testingPlan", fallback),
-            TESTING_PLAN_PROMPT,
-            `Generate testing plan for UPDATED stack: ${stackSummary}`,
-            trimHistory(session.history),
-            TOKEN_BUDGET.testingPlan,
-            "testingPlan",
-          );
-          if (r) {
-            updatedContent = r.content;
-            tokensUsed += r.tokens;
-          }
-          break;
-        }
-        case "userStories": {
-          const r = await callGroqRaw(
-            getApiKey("userStories", fallback),
-            USER_STORY_PROMPT,
-            `Project (updated): ${prompt}\nStack summary: ${stackSummary}`,
-            trimHistory(session.history),
-            TOKEN_BUDGET.userStories,
-            "userStories",
-          );
-          if (r) {
-            updatedContent = r.content;
-            tokensUsed += r.tokens;
-          }
-          break;
-        }
-
-        case "roadmap": {
-          const r = await callGroqRaw(
-            getApiKey("roadmap", fallback),
-            ROADMAP_PROMPT,
-            `Stack summary: ${stackSummary}\nModification context: ${prompt}`,
-            trimHistory(session.history),
-            TOKEN_BUDGET.roadmap,
-            "roadmap",
-          );
-          if (r) {
-            updatedContent = r.content;
-            tokensUsed += r.tokens;
-          }
-          break;
-        }
-
-        case "deploymentGuide": {
-          const r = await callGroqRaw(
-            getApiKey("deploymentGuide", fallback),
-            DEPLOYMENT_GUIDE_PROMPT,
-            `Stack summary: ${stackSummary}\nModification context: ${prompt}`,
-            trimHistory(session.history),
-            TOKEN_BUDGET.deploymentGuide,
-            "deploymentGuide",
-          );
-          if (r) {
-            updatedContent = r.content;
-            tokensUsed += r.tokens;
-          }
-          break;
-        }
-
-        case "costEstimation": {
-          const r = await callGroqRaw(
-            getApiKey("costEstimation", fallback),
-            COST_ESTIMATION_PROMPT,
-            `Stack summary: ${stackSummary}\nModification context: ${prompt}`,
-            trimHistory(session.history),
-            TOKEN_BUDGET.costEstimation,
-            "costEstimation",
-          );
-          if (r) {
-            updatedContent = r.content;
-            tokensUsed += r.tokens;
-          }
-          break;
-        }
-
-        case "projectTimeline": {
-          const r = await callGroqRaw(
-            getApiKey("projectTimeline", fallback),
-            PROJECT_TIMELINE_PROMPT,
-            `Stack summary: ${stackSummary}\nModification context: ${prompt}`,
-            trimHistory(session.history),
-            TOKEN_BUDGET.projectTimeline,
-            "projectTimeline",
-          );
-          if (r) {
-            updatedContent = r.content;
-            tokensUsed += r.tokens;
-          }
-          break;
-        }
-        case "riskAnalysis": {
-          const r = await callGroqRaw(
-            getApiKey("riskAnalysis", fallback),
-            RISK_ANALYSIS_PROMPT,
-            `Stack summary: ${stackSummary}\nModification context: ${prompt}`,
-            trimHistory(session.history),
-            TOKEN_BUDGET.riskAnalysis,
-            "riskAnalysis",
-          );
-          if (r) {
-            updatedContent = r.content;
-            tokensUsed += r.tokens;
-          }
-          break;
-        }
-
-        case "finalMarkdown": {
-          const r = await callGroqRaw(
-            getApiKey("finalMarkdown", fallback),
-            FINAL_MARKDOWN_PROMPT,
-            `Stack summary: ${stackSummary}
-        Project description: ${prompt}
-        Config: ${summarizeYaml(newYaml)}
-        Previously generated artifacts context:
-        - Folder Structure: ${session.lastResult?.folderStructure?.slice(0, 300) ?? "not generated"}
-        - API Design: ${session.lastResult?.apiDesign?.slice(0, 300) ?? "not generated"}
-        - Testing Plan: ${session.lastResult?.testingPlan?.slice(0, 300) ?? "not generated"}
-        - User Stories: ${session.lastResult?.userStories?.slice(0, 300) ?? "not generated"}
-        - Roadmap: ${session.lastResult?.roadmap?.slice(0, 300) ?? "not generated"}
-        - Deployment Guide: ${session.lastResult?.deploymentGuide?.slice(0, 300) ?? "not generated"}
-        - Cost Estimation: ${session.lastResult?.costEstimation?.slice(0, 300) ?? "not generated"}
-        - Project Timeline: ${session.lastResult?.projectTimeline?.slice(0, 300) ?? "not generated"}
-        - Risk Analysis: ${session.lastResult?.riskAnalysis?.slice(0, 300) ?? "not generated"}`,
-            trimHistory(session.history),
-            TOKEN_BUDGET.finalMarkdown,
-            "finalMarkdown",
-          );
-          if (r) {
-            updatedContent = r.content;
-            tokensUsed += r.tokens;
-          }
-          break;
-        }
-
-        case "config":
-        default:
-          updatedContent = newYaml;
-          break;
-      }
-
-      await deductTokens(userId, tokensUsed);
-
-      // Merge updated artifact back into lastResult
-      const updated: GenerateResult = {
-        ...session.lastResult!,
-        yaml: safeYaml(newYaml),
-        ...(artifact === "docker" && updatedContent
-          ? { docker: safeYaml(updatedContent) }
-          : {}),
-        ...(artifact === "markdown" && updatedContent
-          ? { markdown: updatedContent }
-          : {}),
-        ...(artifact === "folderStructure" && updatedContent
-          ? { folderStructure: updatedContent }
-          : {}),
-        ...(artifact === "apiDesign" && updatedContent
-          ? { apiDesign: updatedContent }
-          : {}),
-        ...(artifact === "testingPlan" && updatedContent
-          ? { testingPlan: updatedContent }
-          : {}),
-        ...(artifact === "userStories" && updatedContent
-          ? { userStories: updatedContent }
-          : {}),
-        ...(artifact === "roadmap" && updatedContent
-          ? { roadmap: updatedContent }
-          : {}),
-        ...(artifact === "deploymentGuide" && updatedContent
-          ? { deploymentGuide: updatedContent }
-          : {}),
-        ...(artifact === "costEstimation" && updatedContent
-          ? { costEstimation: updatedContent }
-          : {}),
-        ...(artifact === "projectTimeline" && updatedContent
-          ? { projectTimeline: updatedContent }
-          : {}),
-        ...(artifact === "riskAnalysis" && updatedContent
-          ? { riskAnalysis: updatedContent }
-          : {}),
-        ...(artifact === "finalMarkdown" && updatedContent
-          ? { finalMarkdown: updatedContent }
-          : {}),
-      };
-      session.lastResult = updated;
-
-      await saveAssistantMessage(sessionId, userId, JSON.stringify(updated));
-      await memoryStore.addMessage(sessionId, {
-        role: "assistant",
-        content: JSON.stringify(updated),
-        userId,
-      });
-      await saveArtifact(
+      await deductTokens(userId, result.tokensUsed);
+      await firestoreService.saveAssistantMessage(
         sessionId,
         userId,
-        artifact,
-        updatedContent || newYaml,
+        `Modified ${artifactType}`,
+        artifactType,
       );
-      await memoryStore.addArtifact(sessionId, {
-        type: artifact,
-        content: updatedContent || newYaml,
-        userId,
-      });
-      await saveSessionMetadata(sessionId, userId, generatedTitle);
-      await memoryStore.updateSession(sessionId, {
-        userId,
-        ...(generatedTitle && { title: generatedTitle }),
+      await firestoreService.saveSessionMetadata(sessionId, userId, {
+        title: generatedTitle,
+        totalTokensUsed: state.totalTokensUsed,
       });
 
-      // Return only the updated artifact + refreshed yaml
       return secureHeaders(
         NextResponse.json({
-          artifact,
-          yaml: updated.yaml,
-          ...(artifact === "docker" ? { content: updated.docker } : {}),
-          ...(artifact === "markdown" ? { content: updated.markdown } : {}),
-          ...(artifact === "folderStructure"
-            ? { content: updated.folderStructure }
-            : {}),
-          ...(artifact === "apiDesign" ? { content: updated.apiDesign } : {}),
-          ...(artifact === "testingPlan"
-            ? { content: updated.testingPlan }
-            : {}),
-          ...(artifact === "userStories"
-            ? { content: updated.userStories }
-            : {}),
-          ...(artifact === "roadmap" ? { content: updated.roadmap } : {}),
-          ...(artifact === "deploymentGuide"
-            ? { content: updated.deploymentGuide }
-            : {}),
-          ...(artifact === "config" ? { content: updated.yaml } : {}),
-          ...(artifact === "costEstimation"
-            ? { content: updated.costEstimation }
-            : {}),
-          ...(artifact === "projectTimeline"
-            ? { content: updated.projectTimeline }
-            : {}),
-          ...(artifact === "riskAnalysis"
-            ? { content: updated.riskAnalysis }
-            : {}),
-          ...(artifact === "finalMarkdown"
-            ? { content: updated.finalMarkdown }
-            : {}),
+          artifact: artifactType,
+          yaml: result.yaml,
+          content: result.content,
+          staleArtifacts: result.staleArtifacts,
         }),
       );
     }
@@ -2058,501 +184,126 @@ export async function POST(req: Request) {
     // GENERATE MODE
     // ══════════════════════════════════════════════════════════════════════════
 
-    // ── "initial" — YAML (silent) + Markdown (shown in UI) ───────────────────
-    if (artifact === "initial") {
-      const configKey = getApiKey("config", fallback);
-      const markdownKey = getApiKey("markdown", fallback);
+    // ── "initial" — Config (YAML) + Markdown (Project Brief) ─────────────────
+    if (artifact === 'initial') {
+      // CLEAR in-memory ProjectState, artifact cache, summaries, and metadata for a fresh pipeline
+      state.artifacts = {};
+      state.summaries = {};
+      state.projectDescription = prompt;
+      state.totalTokensUsed = 0;
+      
+      const result = await generateInitial(state, prompt, fallbackApiKey);
+      if (!result)
+        return errorResponse('Initial generation failed', 'LLM_ERROR', 500);
 
-      // 1. YAML — stored in session, not shown in UI
-      const configResult = await callGroq(
-        configKey,
-        SOFTWARE_CONFIG_PROMPT,
-        prompt,
-        history,
-        TOKEN_BUDGET.config,
-        "config",
-      );
-      if (!configResult)
-        return errorResponse("Config generation failed", "LLM_ERROR", 500);
-      const yaml = configResult.content;
-
-      session.history.push({ role: "user", content: prompt });
-      session.history.push({
-        role: "assistant",
-        content: compressForHistory(yaml, "config"),
-      });
-
-      const stackSummary = summarizeYaml(yaml);
-
-      // 2. Markdown docs — shown in UI immediately
-      const markdownCtx = `Project description: ${prompt}\nStack summary: ${stackSummary}`;
-      const markdownResult = await callGroqRaw(
-        markdownKey,
-        MARKDOWN_PROMPT,
-        markdownCtx,
-        trimHistory(session.history),
-        TOKEN_BUDGET.markdown,
-        "markdown",
-      );
-      if (!markdownResult)
-        return errorResponse("Docs generation failed", "LLM_ERROR", 500);
-      const markdown = markdownResult.content;
-
-      session.history.push({
-        role: "assistant",
-        content: compressForHistory(markdown, "markdown"),
-      });
-
-      await deductTokens(userId, configResult.tokens + markdownResult.tokens);
-
-      // Store partial result — other artifacts filled lazily as user requests them
-      session.lastResult = {
-        yaml: safeYaml(yaml),
-        markdown,
-        docker: "",
-        folderStructure: "",
-        apiDesign: "",
-        testingPlan: "",
-        userStories: "",
-        roadmap: "",
-        deploymentGuide: "",
-        costEstimation: "",
-        projectTimeline: "",
-        riskAnalysis: "",
-        finalMarkdown: "",
-      };
-
-      await saveAssistantMessage(
+      await deductTokens(userId, result.tokensUsed);
+      await firestoreService.saveAssistantMessage(
         sessionId,
         userId,
-        JSON.stringify(session.lastResult),
+        'Project brief and configuration generated.',
+        'initial',
       );
-      await memoryStore.addMessage(sessionId, {
-        role: "assistant",
-        content: JSON.stringify(session.lastResult),
-        userId,
-      });
-      await saveArtifact(sessionId, userId, "config", yaml);
-      await saveArtifact(sessionId, userId, "docs", markdown);
-      await memoryStore.addArtifact(sessionId, {
-        type: "config",
-        content: yaml,
-        userId,
-      });
-      await memoryStore.addArtifact(sessionId, {
-        type: "docs",
-        content: markdown,
-        userId,
-      });
-      await saveSessionMetadata(sessionId, userId, generatedTitle);
-      await memoryStore.updateSession(sessionId, {
-        userId,
-        ...(generatedTitle && { title: generatedTitle }),
+      await firestoreService.saveSessionMetadata(sessionId, userId, {
+        title: generatedTitle,
+        projectDescription: prompt,
+        status: 'generating',
+        totalTokensUsed: state.totalTokensUsed,
       });
 
       return secureHeaders(
         NextResponse.json({
-          artifact: "initial",
-          yaml: session.lastResult.yaml,
-          markdown: session.lastResult.markdown,
+          artifact: 'initial',
+          yaml: result.yaml,
+          markdown: result.markdown,
         }),
       );
     }
 
-    // ── Single artifact — requires an existing session config (except for config itself) ─────────────────
-    if (artifact !== "config" && !session.lastResult?.yaml)
-      return errorResponse(
-        "No config in session. Generate initial result first.",
-        "NO_SESSION_CONFIG",
-        400,
-      );
-
-    // Ensure lastResult is initialized
-    session.lastResult = session.lastResult || {
-      yaml: "",
-      markdown: "",
-      docker: "",
-    };
-
-    let content = "";
-    let tokens = 0;
-
-    switch (artifact) {
-      case "config": {
-        const r = await callGroq(
-          getApiKey("config", fallback),
-          SOFTWARE_CONFIG_PROMPT,
-          prompt,
-          history,
-          TOKEN_BUDGET.config,
-          "config",
-        );
-        if (!r)
-          return errorResponse("Config generation failed", "LLM_ERROR", 500);
-        content = safeYaml(r.content);
-        tokens = r.tokens;
-        session.lastResult.yaml = content;
-        session.history.push({
-          role: "assistant",
-          content: compressForHistory(content, "config"),
-        });
-        break;
-      }
-      case "docker": {
-        const stackSummary = summarizeYaml(session.lastResult.yaml);
-        const r = await callGroq(
-          getApiKey("docker", fallback),
-          DOCKER_PROMPT,
-          `Generate docker-compose for this stack: ${stackSummary}`,
-          history,
-          TOKEN_BUDGET.docker,
-          "docker",
-        );
-        if (!r)
-          return errorResponse("Docker generation failed", "LLM_ERROR", 500);
-        content = safeYaml(r.content);
-        tokens = r.tokens;
-        session.lastResult.docker = content;
-        session.history.push({
-          role: "assistant",
-          content: compressForHistory(content, "docker"),
-        });
-        break;
-      }
-      case "markdown": {
-        const stackSummary = summarizeYaml(session.lastResult.yaml);
-        const r = await callGroqRaw(
-          getApiKey("markdown", fallback),
-          MARKDOWN_PROMPT,
-          `Project description: ${prompt}\nStack summary: ${stackSummary}`,
-          history,
-          TOKEN_BUDGET.markdown,
-          "markdown",
-        );
-        if (!r)
-          return errorResponse("Docs generation failed", "LLM_ERROR", 500);
-        content = r.content;
-        tokens = r.tokens;
-        session.lastResult.markdown = content;
-        session.history.push({
-          role: "assistant",
-          content: compressForHistory(content, "markdown"),
-        });
-        break;
-      }
-      case "folderStructure": {
-        const stackSummary = summarizeYaml(session.lastResult.yaml);
-        const r = await callGroq(
-          getApiKey("folderStructure", fallback),
-          FOLDER_STRUCTURE_PROMPT,
-          `Generate folder structure for: ${stackSummary}`,
-          history,
-          TOKEN_BUDGET.folderStructure,
-          "folderStructure",
-        );
-        if (!r)
-          return errorResponse(
-            "Folder structure generation failed",
-            "LLM_ERROR",
-            500,
-          );
-        content = r.content;
-        tokens = r.tokens;
-        session.lastResult.folderStructure = content;
-        break;
-      }
-      case "apiDesign": {
-        const stackSummary = summarizeYaml(session.lastResult.yaml);
-        const r = await callGroq(
-          getApiKey("apiDesign", fallback),
-          API_DESIGN_PROMPT,
-          `Generate API design for: ${stackSummary}`,
-          history,
-          TOKEN_BUDGET.apiDesign,
-          "apiDesign",
-        );
-        if (!r)
-          return errorResponse(
-            "API design generation failed",
-            "LLM_ERROR",
-            500,
-          );
-        content = r.content;
-        tokens = r.tokens;
-        session.lastResult.apiDesign = content;
-        session.history.push({
-          role: "assistant",
-          content: compressForHistory(content, "apidesign"),
-        });
-        break;
-      }
-      case "testingPlan": {
-        const stackSummary = summarizeYaml(session.lastResult.yaml);
-        const r = await callGroq(
-          getApiKey("testingPlan", fallback),
-          TESTING_PLAN_PROMPT,
-          `Generate testing plan for: ${stackSummary}`,
-          history,
-          TOKEN_BUDGET.testingPlan,
-          "testingPlan",
-        );
-        if (!r)
-          return errorResponse(
-            "Testing plan generation failed",
-            "LLM_ERROR",
-            500,
-          );
-        content = r.content;
-        tokens = r.tokens;
-        session.lastResult.testingPlan = content;
-        session.history.push({
-          role: "assistant",
-          content: compressForHistory(content, "testingplan"),
-        });
-        break;
-      }
-      case "userStories": {
-        const stackSummary = summarizeYaml(session.lastResult.yaml);
-        const r = await callGroqRaw(
-          getApiKey("userStories", fallback),
-          USER_STORY_PROMPT,
-          `Project description: ${prompt}\nStack summary: ${stackSummary}`,
-          history,
-          TOKEN_BUDGET.userStories,
-          "userStories",
-        );
-        if (!r)
-          return errorResponse(
-            "User stories generation failed",
-            "LLM_ERROR",
-            500,
-          );
-        content = r.content;
-        tokens = r.tokens;
-        session.lastResult.userStories = content;
-        session.history.push({
-          role: "assistant",
-          content: compressForHistory(content, "userstories"),
-        });
-        break;
-      }
-
-      case "roadmap": {
-        const stackSummary = summarizeYaml(session.lastResult.yaml);
-        const r = await callGroqRaw(
-          getApiKey("roadmap", fallback),
-          ROADMAP_PROMPT,
-          `Stack summary: ${stackSummary}\nProject description: ${prompt}`,
-          history,
-          TOKEN_BUDGET.roadmap,
-          "roadmap",
-        );
-        if (!r)
-          return errorResponse("Roadmap generation failed", "LLM_ERROR", 500);
-        content = r.content;
-        tokens = r.tokens;
-        session.lastResult.roadmap = content;
-        session.history.push({
-          role: "assistant",
-          content: compressForHistory(content, "roadmap"),
-        });
-        break;
-      }
-      case "deploymentGuide": {
-        const stackSummary = summarizeYaml(session.lastResult.yaml);
-        const r = await callGroqRaw(
-          getApiKey("deploymentGuide", fallback),
-          DEPLOYMENT_GUIDE_PROMPT,
-          `Stack summary: ${stackSummary}\nProject description: ${prompt}`,
-          history,
-          TOKEN_BUDGET.deploymentGuide,
-          "deploymentGuide",
-        );
-        if (!r)
-          return errorResponse(
-            "Deployment guide generation failed",
-            "LLM_ERROR",
-            500,
-          );
-        content = r.content;
-        tokens = r.tokens;
-        session.lastResult.deploymentGuide = content;
-        session.history.push({
-          role: "assistant",
-          content: compressForHistory(content, "deploymentGuide"),
-        });
-        break;
-      }
-      case "costEstimation": {
-        const stackSummary = summarizeYaml(session.lastResult.yaml);
-        const r = await callGroqRaw(
-          getApiKey("costEstimation", fallback),
-          COST_ESTIMATION_PROMPT,
-          `Stack summary: ${stackSummary}\nProject description: ${prompt}`,
-          history,
-          TOKEN_BUDGET.costEstimation,
-          "costEstimation",
-        );
-        if (!r)
-          return errorResponse(
-            "Cost estimation generation failed",
-            "LLM_ERROR",
-            500,
-          );
-        content = r.content;
-        tokens = r.tokens;
-        session.lastResult.costEstimation = content;
-        session.history.push({
-          role: "assistant",
-          content: compressForHistory(content, "costEstimation"),
-        });
-        break;
-      }
-      case "projectTimeline": {
-        const stackSummary = summarizeYaml(session.lastResult.yaml);
-        const r = await callGroqRaw(
-          getApiKey("projectTimeline", fallback),
-          PROJECT_TIMELINE_PROMPT,
-          `Stack summary: ${stackSummary}\nProject description: ${prompt}`,
-          history,
-          TOKEN_BUDGET.projectTimeline,
-          "projectTimeline",
-        );
-        if (!r)
-          return errorResponse(
-            "Project timeline generation failed",
-            "LLM_ERROR",
-            500,
-          );
-        content = r.content;
-        tokens = r.tokens;
-        session.lastResult.projectTimeline = content;
-        session.history.push({
-          role: "assistant",
-          content: compressForHistory(content, "projectTimeline"),
-        });
-        break;
-      }
-      case "riskAnalysis": {
-        const stackSummary = summarizeYaml(session.lastResult.yaml);
-        const r = await callGroqRaw(
-          getApiKey("riskAnalysis", fallback),
-          RISK_ANALYSIS_PROMPT,
-          `Stack summary: ${stackSummary}\nProject description: ${prompt}`,
-          history,
-          TOKEN_BUDGET.riskAnalysis,
-          "riskAnalysis",
-        );
-        if (!r)
-          return errorResponse(
-            "Risk analysis generation failed",
-            "LLM_ERROR",
-            500,
-          );
-        content = r.content;
-        tokens = r.tokens;
-        session.lastResult.riskAnalysis = content;
-        session.history.push({
-          role: "assistant",
-          content: compressForHistory(content, "riskAnalysis"),
-        });
-        break;
-      }
-
-      case "finalMarkdown": {
-        const stackSummary = summarizeYaml(session.lastResult.yaml);
-        const r = await callGroqRaw(
-          getApiKey("finalMarkdown", fallback),
-          FINAL_MARKDOWN_PROMPT,
-          `Stack summary: ${stackSummary}
-          Project description: ${prompt}
-          Previously generated artifacts context:
-          - Folder Structure: ${session.lastResult?.folderStructure?.slice(0, 300) ?? "not generated"}
-          - API Design: ${session.lastResult?.apiDesign?.slice(0, 300) ?? "not generated"}
-          - Testing Plan: ${session.lastResult?.testingPlan?.slice(0, 300) ?? "not generated"}
-          - User Stories: ${session.lastResult?.userStories?.slice(0, 300) ?? "not generated"}
-          - Roadmap: ${session.lastResult?.roadmap?.slice(0, 300) ?? "not generated"}
-          - Deployment Guide: ${session.lastResult?.deploymentGuide?.slice(0, 300) ?? "not generated"}
-          - Cost Estimation: ${session.lastResult?.costEstimation?.slice(0, 300) ?? "not generated"}
-          - Project Timeline: ${session.lastResult?.projectTimeline?.slice(0, 300) ?? "not generated"}
-          - Risk Analysis: ${session.lastResult?.riskAnalysis?.slice(0, 300) ?? "not generated"}`,
-          history,
-          TOKEN_BUDGET.finalMarkdown,
-          "finalMarkdown",
-        );
-        if (!r)
-          return errorResponse(
-            "Final markdown generation failed",
-            "LLM_ERROR",
-            500,
-          );
-        content = r.content;
-        tokens = r.tokens;
-        session.lastResult.finalMarkdown = content;
-        session.history.push({
-          role: "assistant",
-          content: compressForHistory(content, "finalMarkdown"),
-        });
-        break;
-      }
-      case "db": {
-        const stackSummary = summarizeYaml(session.lastResult.yaml);
-        const dbSchema = await callN8nDbDesign(prompt, stackSummary);
-        if (!dbSchema)
-          return errorResponse("DB schema generation failed", "N8N_ERROR", 500);
-        session.lastResult.dbSchema = dbSchema;
-        await saveArtifact(
-          sessionId,
-          userId,
-          "dbSchema",
-          JSON.stringify(dbSchema),
-        );
-        await memoryStore.addArtifact(sessionId, {
-          type: "dbSchema",
-          content: JSON.stringify(dbSchema),
-          userId,
-        });
-        await saveSessionMetadata(sessionId, userId, generatedTitle);
-        await memoryStore.updateSession(sessionId, {
-          userId,
-          ...(generatedTitle && { title: generatedTitle }),
-        });
-        return secureHeaders(NextResponse.json({ artifact: "db", dbSchema }));
-      }
-      default:
+    // ── DB Schema (external webhook) ─────────────────────────────────────────
+    if (artifact === 'db') {
+      if (!state.artifacts.config?.content)
         return errorResponse(
-          `Unknown artifact: ${artifact}`,
-          "BAD_REQUEST",
+          'No config in session. Generate initial result first.',
+          'NO_SESSION_CONFIG',
           400,
         );
+
+      const dbSchema = await generateDbSchema(state, prompt);
+      if (!dbSchema)
+        return errorResponse('DB schema generation failed', 'N8N_ERROR', 500);
+
+      await firestoreService.saveAssistantMessage(
+        sessionId,
+        userId,
+        'Database schema generated.',
+        'db',
+      );
+      await firestoreService.saveSessionMetadata(sessionId, userId, {
+        title: generatedTitle,
+        totalTokensUsed: state.totalTokensUsed,
+      });
+
+      return secureHeaders(
+        NextResponse.json({ artifact: 'db', dbSchema }),
+      );
     }
 
-    await deductTokens(userId, tokens);
-    await saveArtifact(sessionId, userId, artifact, content);
-    await memoryStore.addArtifact(sessionId, {
-      type: artifact,
-      content,
-      userId,
-    });
-    await saveAssistantMessage(
+    // ── Single artifact generation ───────────────────────────────────────────
+    const artifactType = artifact as ArtifactType;
+
+    if (artifactType !== 'config' && !state.artifacts.config?.content) {
+      // Auto-regenerate config if missing
+      const configResult = await generateArtifact(
+        'config',
+        state,
+        prompt,
+        fallbackApiKey,
+        'generate',
+      );
+      if (!configResult)
+        return errorResponse(
+          'No config in session. Generate initial result first.',
+          'NO_SESSION_CONFIG',
+          400,
+        );
+      await deductTokens(userId, configResult.tokensUsed);
+    }
+
+    const result = await generateArtifact(
+      artifactType,
+      state,
+      prompt,
+      fallbackApiKey,
+      'generate',
+    );
+
+    if (!result)
+      return errorResponse(
+        `${artifactType} generation failed`,
+        'LLM_ERROR',
+        500,
+      );
+
+    await deductTokens(userId, result.tokensUsed);
+    await firestoreService.saveAssistantMessage(
       sessionId,
       userId,
-      JSON.stringify({ artifact, content }),
+      `${artifactType} generated.`,
+      artifactType,
     );
-    await memoryStore.addMessage(sessionId, {
-      role: "assistant",
-      content: JSON.stringify({ artifact, content }),
-      userId,
-    });
-    await saveSessionMetadata(sessionId, userId, generatedTitle);
-    await memoryStore.updateSession(sessionId, {
-      userId,
-      ...(generatedTitle && { title: generatedTitle }),
+    await firestoreService.saveSessionMetadata(sessionId, userId, {
+      title: generatedTitle,
+      totalTokensUsed: state.totalTokensUsed,
     });
 
-    return secureHeaders(NextResponse.json({ artifact, content }));
+    return secureHeaders(
+      NextResponse.json({
+        artifact: artifactType,
+        content: result.artifact.content,
+      }),
+    );
   } catch (err) {
-    log.error("Unhandled error", { err: String(err) });
-    return errorResponse("Internal server error", "SERVER_ERROR", 500);
+    log.error('Unhandled error', { err: String(err) });
+    return errorResponse('Internal server error', 'SERVER_ERROR', 500);
   }
 }

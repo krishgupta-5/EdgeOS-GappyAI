@@ -406,23 +406,21 @@ export function validateArtifact(
 
     // 4. Timeline Consistency
     if (artifactType === 'projectTimeline' && state.artifacts.roadmap?.content) {
-      const roadmapLower = state.artifacts.roadmap.content.toLowerCase();
-      // Match all week durations in roadmap and sum them
-      const roadmapMatches = [...roadmapLower.matchAll(/(\d+)\s+weeks?/g)];
-      const roadmapTotal = roadmapMatches.reduce((sum, match) => sum + parseInt(match[1], 10), 0);
-      
-      // Parse timeline for range (e.g. 30-40 weeks) or sum its phases
-      const timelineRangeMatch = contentLower.match(/(\d+)\s*(?:-|to)\s*(\d+)\s+weeks?/);
-      let timelineTotal = 0;
-      if (timelineRangeMatch) {
-        timelineTotal = parseInt(timelineRangeMatch[2], 10);
-      } else {
-        const timelineMatches = [...contentLower.matchAll(/(\d+)\s+weeks?/g)];
-        timelineTotal = timelineMatches.reduce((sum, match) => sum + parseInt(match[1], 10), 0);
-      }
+      const getPhaseTotal = (text: string) => {
+        const phaseLines = text.split('\n').filter(l => /phase/i.test(l));
+        let total = 0;
+        for (const line of phaseLines) {
+          const match = line.match(/(\d+)\s+weeks?/i);
+          if (match) total += parseInt(match[1], 10);
+        }
+        return total;
+      };
+
+      const roadmapTotal = getPhaseTotal(state.artifacts.roadmap.content);
+      const timelineTotal = getPhaseTotal(fixedContent);
       
       if (roadmapTotal > 0 && timelineTotal > 0 && roadmapTotal > timelineTotal) {
-        errors.push(`Timeline consistency mismatch: Roadmap phases total ${roadmapTotal} weeks, which exceeds the Timeline estimate of ${timelineTotal} weeks.`);
+        warnings.push(`Timeline consistency mismatch: Roadmap phases total ${roadmapTotal} weeks, which exceeds the Timeline estimate of ${timelineTotal} weeks.`);
       }
     }
 

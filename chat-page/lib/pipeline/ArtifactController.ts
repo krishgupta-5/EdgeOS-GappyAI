@@ -22,13 +22,13 @@ import type {
 } from './types';
 import { TOKEN_BUDGET, DEFAULT_MODEL, REQUEST_TIMEOUT_MS, ACTIVEPIECES_TIMEOUT_MS } from './types';
 import { getDownstreamDependents, getMissingDependencies } from './DependencyResolver';
-import { buildContext, buildConfigContext, getStackSummary } from './ContextBuilder';
+import { buildContext, getStackSummary } from './ContextBuilder';
 import {
   buildPromptMessages,
   buildTitlePromptMessages,
   buildInitialMarkdownMessages,
 } from './PromptBuilder';
-import { getTemperature } from './prompts/master';
+import { getTemperature, MASTER_PROMPT } from './prompts/master';
 import { isRawOutputArtifact, usesStopTokens, getArtifactPrompt } from './prompts';
 import {
   callGroq,
@@ -224,9 +224,7 @@ export async function generateArtifact(
   const stopTokens = usesStopTokens(artifactType) ? ['```'] : undefined;
 
   // 1. Build context (dependency-aware)
-  const context = artifactType === 'config' && mode === 'generate'
-    ? buildConfigContext(userPrompt)
-    : buildContext(artifactType, state, userPrompt, mode);
+  const context = buildContext(artifactType, state, userPrompt, mode);
 
   // 2. Build prompt messages
   const existingContent = mode === 'modify'
@@ -274,14 +272,13 @@ export async function generateArtifact(
       const artifactPrompt = getArtifactPrompt(artifactType);
       
       const retryContent = [
-        context.configSummary ? `[CONFIG SUMMARY]\n${context.configSummary}` : '',
         `[INSTRUCTIONS]\n${artifactPrompt}`,
-        `[USER REQUEST]\n${userPrompt}`,
+        `[PREVIOUS OUTPUT]\n${groqResult.content}`,
         retryInstructions
       ].filter(Boolean).join('\n\n---\n\n');
 
       const retryMessages = [
-        { role: 'system' as const, content: context.masterPrompt },
+        { role: 'system' as const, content: MASTER_PROMPT },
         { role: 'user' as const, content: retryContent }
       ];
 
@@ -404,7 +401,18 @@ export async function generateInitial(
   markdown: string;
   tokensUsed: number;
 } | null> {
-  // 1. Generate config
+  // 1. Generate markdown
+  const markdownResult = await generateArtifact(
+    'markdown',
+    state,
+    userPrompt,
+    fallbackApiKey,
+    'generate',
+  );
+
+  if (!markdownResult) return null;
+
+  // 2. Generate config with markdown context
   const configResult = await generateArtifact(
     'config',
     state,
@@ -416,17 +424,6 @@ export async function generateInitial(
   if (!configResult) return null;
 
   const yaml = safeYaml(configResult.artifact.content);
-
-  // 2. Generate markdown with config context
-  const markdownResult = await generateArtifact(
-    'markdown',
-    state,
-    userPrompt,
-    fallbackApiKey,
-    'generate',
-  );
-
-  if (!markdownResult) return null;
 
   return {
     yaml,
@@ -518,7 +515,7 @@ export async function generateDbSchema(
     return null;
   }
 
-  const stackSummary = getStackSummary(state);
+  const markdownSummary = state.summaries.markdown || state.projectDescription;
   const startTime = Date.now();
 
   try {
@@ -526,7 +523,7 @@ export async function generateDbSchema(
       fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: userPrompt, stackSummary }),
+        body: JSON.stringify({ prompt: userPrompt, stackSummary: markdownSummary }),
       }),
       new Promise<Response>((_, rej) =>
         setTimeout(() => rej(new Error('Webhook timeout')), ACTIVEPIECES_TIMEOUT_MS),

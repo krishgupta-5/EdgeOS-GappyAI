@@ -111,7 +111,7 @@ export function buildContext(
   let remainingTokens = MAX_CONTEXT_TOKENS - tokenEstimate;
   if (remainingTokens < 0) remainingTokens = 0;
 
-  // Filter out missing summaries and calculate total weight
+  // Filter out missing summaries
   const validDeps = availableDeps.filter(dep => state.summaries[dep]);
   for (const dep of availableDeps) {
     if (!state.summaries[dep]) {
@@ -119,27 +119,37 @@ export function buildContext(
     }
   }
 
-  const totalWeight = validDeps.reduce((sum, dep) => sum + (ARTIFACT_WEIGHTS[dep] || 2), 0);
+  const MUST_INCLUDE: ArtifactType[] = ['config', 'markdown', 'apiDesign', 'roadmap'];
+  const mustIncludeDeps = validDeps.filter(dep => MUST_INCLUDE.includes(dep));
+  const flexibleDeps = validDeps.filter(dep => !MUST_INCLUDE.includes(dep));
 
-  let currentRemainingTokens = remainingTokens;
-  let currentTotalWeight = totalWeight;
+  let mustIncludeTokens = 0;
+  for (const dep of mustIncludeDeps) {
+    mustIncludeTokens += Math.ceil(state.summaries[dep]!.length / 4);
+  }
 
-  // Sort by token demand relative to weight (smallest demand first)
-  // This ensures that summaries that don't need their full budget free up tokens for those that do
-  const sortedDeps = [...validDeps].sort((a, b) => {
-    const demandA = Math.ceil(state.summaries[a]!.length / 4) / (ARTIFACT_WEIGHTS[a] || 2);
-    const demandB = Math.ceil(state.summaries[b]!.length / 4) / (ARTIFACT_WEIGHTS[b] || 2);
-    return demandA - demandB;
-  });
+  let currentRemainingTokens = remainingTokens - mustIncludeTokens;
+  if (currentRemainingTokens < 0) currentRemainingTokens = 0;
+
+  const totalFlexibleWeight = flexibleDeps.reduce((sum, dep) => sum + (ARTIFACT_WEIGHTS[dep] || 2), 0);
 
   const processedSummaries = new Map<ArtifactType, { content: string, status: string, tokens: number }>();
 
-  for (const dep of sortedDeps) {
+  // First allocate must-include deps
+  for (const dep of mustIncludeDeps) {
+    const summary = state.summaries[dep]!;
+    const tokens = Math.ceil(summary.length / 4);
+    processedSummaries.set(dep, { content: summary, status: dep, tokens });
+  }
+
+  // Then allocate flexible deps proportionally
+  for (const dep of flexibleDeps) {
     const summary = state.summaries[dep]!;
     const weight = ARTIFACT_WEIGHTS[dep] || 2;
     
-    // Allocate proportional to remaining weight and tokens
-    const tokenBudget = Math.floor((weight / currentTotalWeight) * currentRemainingTokens);
+    // Allocate proportional to remaining weight and tokens, but guarantee a minimum floor (e.g. 25 tokens / ~100 chars)
+    let tokenBudget = totalFlexibleWeight > 0 ? Math.floor((weight / totalFlexibleWeight) * currentRemainingTokens) : 0;
+    tokenBudget = Math.max(tokenBudget, 25);
     const charBudget = tokenBudget * 4;
     
     let tokensUsed = 0;
@@ -147,12 +157,13 @@ export function buildContext(
       processedSummaries.set(dep, { content: summary, status: dep, tokens: Math.ceil(summary.length / 4) });
       tokensUsed = Math.ceil(summary.length / 4);
     } else {
-      processedSummaries.set(dep, { content: summary.slice(0, charBudget) + '\n...[TRUNCATED]', status: `${dep} (truncated)`, tokens: tokenBudget });
+      const cutoff = summary.lastIndexOf('\n', charBudget);
+      const cleanSlice = cutoff > 0 ? summary.slice(0, cutoff) : summary.slice(0, charBudget);
+      processedSummaries.set(dep, { content: cleanSlice + '\n...[TRUNCATED]', status: `${dep} (compressed)`, tokens: Math.ceil(cleanSlice.length / 4) + 2 });
       tokensUsed = tokenBudget;
     }
 
     currentRemainingTokens -= tokensUsed;
-    currentTotalWeight -= weight;
   }
 
   // Restore original logical order for prompt injection
@@ -188,35 +199,7 @@ export function buildContext(
   };
 }
 
-/**
- * Build a minimal context for the config artifact (first artifact generated).
- * Config has no dependencies, so context is just the master prompt + user prompt.
- */
-export function buildConfigContext(userPrompt: string): ContextPayload {
-  const slicedPrompt = userPrompt.slice(0, 600);
 
-  console.log(
-    JSON.stringify({
-      level: 'info',
-      msg: 'Config Context Generation',
-      originalPromptLength: userPrompt.length,
-      slicedPromptLength: slicedPrompt.length,
-      promptTruncated: userPrompt.length > 600,
-      ts: Date.now(),
-    }),
-  );
-
-  return {
-    masterPrompt: MASTER_PROMPT,
-    projectSummary: slicedPrompt,
-    configSummary: '',
-    dependencySummaries: new Map(),
-    estimatedTokens: CONTEXT_BUDGET.masterPrompt + CONTEXT_BUDGET.projectSummary,
-    dependenciesRequested: [],
-    dependenciesLoaded: [],
-    dependenciesSkipped: [],
-  };
-}
 
 /**
  * Get the stack summary string for legacy compatibility.
