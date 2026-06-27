@@ -121,24 +121,40 @@ export function buildContext(
 
   const totalWeight = validDeps.reduce((sum, dep) => sum + (ARTIFACT_WEIGHTS[dep] || 2), 0);
 
-  for (const dep of validDeps) {
+  let currentRemainingTokens = remainingTokens;
+  let currentTotalWeight = totalWeight;
+
+  // Sort by token demand relative to weight (smallest demand first)
+  // This ensures that summaries that don't need their full budget free up tokens for those that do
+  const sortedDeps = [...validDeps].sort((a, b) => {
+    const demandA = Math.ceil(state.summaries[a].length / 4) / (ARTIFACT_WEIGHTS[a] || 2);
+    const demandB = Math.ceil(state.summaries[b].length / 4) / (ARTIFACT_WEIGHTS[b] || 2);
+    return demandA - demandB;
+  });
+
+  for (const dep of sortedDeps) {
     const summary = state.summaries[dep];
     const weight = ARTIFACT_WEIGHTS[dep] || 2;
-    // Allocate budget proportionally, but cap at the summary's actual size (approx 4 chars per token)
-    const tokenBudget = Math.floor((weight / totalWeight) * remainingTokens);
+    
+    // Allocate proportional to remaining weight and tokens
+    const tokenBudget = Math.floor((weight / currentTotalWeight) * currentRemainingTokens);
     const charBudget = tokenBudget * 4;
-
+    
+    let tokensUsed = 0;
     if (summary.length <= charBudget) {
       dependencySummaries.set(dep, summary);
       dependenciesLoaded.push(dep);
-      tokenEstimate += Math.ceil(summary.length / 4);
+      tokensUsed = Math.ceil(summary.length / 4);
     } else {
       dependencySummaries.set(dep, summary.slice(0, charBudget) + '\n...[TRUNCATED]');
       dependenciesLoaded.push(`${dep} (truncated)`);
-      tokenEstimate += tokenBudget;
+      tokensUsed = tokenBudget;
     }
-  }
 
+    currentRemainingTokens -= tokensUsed;
+    currentTotalWeight -= weight;
+    tokenEstimate += tokensUsed;
+  }
   // Add modification budget if in modify mode
   if (mode === 'modify') {
     tokenEstimate += CONTEXT_BUDGET.userModification;
