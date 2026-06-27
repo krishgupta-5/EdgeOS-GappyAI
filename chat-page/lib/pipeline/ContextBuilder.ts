@@ -127,15 +127,15 @@ export function buildContext(
   // Sort by token demand relative to weight (smallest demand first)
   // This ensures that summaries that don't need their full budget free up tokens for those that do
   const sortedDeps = [...validDeps].sort((a, b) => {
-    const demandA = Math.ceil(state.summaries[a].length / 4) / (ARTIFACT_WEIGHTS[a] || 2);
-    const demandB = Math.ceil(state.summaries[b].length / 4) / (ARTIFACT_WEIGHTS[b] || 2);
+    const demandA = Math.ceil(state.summaries[a]!.length / 4) / (ARTIFACT_WEIGHTS[a] || 2);
+    const demandB = Math.ceil(state.summaries[b]!.length / 4) / (ARTIFACT_WEIGHTS[b] || 2);
     return demandA - demandB;
   });
 
   const processedSummaries = new Map<ArtifactType, { content: string, status: string, tokens: number }>();
 
   for (const dep of sortedDeps) {
-    const summary = state.summaries[dep];
+    const summary = state.summaries[dep]!;
     const weight = ARTIFACT_WEIGHTS[dep] || 2;
     
     // Allocate proportional to remaining weight and tokens
