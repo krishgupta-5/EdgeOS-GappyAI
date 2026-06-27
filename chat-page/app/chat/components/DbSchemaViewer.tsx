@@ -23,11 +23,41 @@ export default function DbSchemaViewer({
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  const processedMermaid = mermaidSource.includes("direction")
-    ? mermaidSource
-    : mermaidSource.replace("erDiagram", "erDiagram\n    direction LR");
+  const lines = mermaidSource.split('\n');
+  const cleanedLines = lines.map(line => {
+    let cleaned = line;
+    
+    // e.g. " |{ " or "|{" (without dashes or dots) -> " ||--o{ "
+    cleaned = cleaned.replace(/(?<![-.])\s*\|\{\s*/g, ' ||--o{ ');
+    
+    // e.g. " }| " or "}|" (without dashes or dots) -> " }o--|| "
+    cleaned = cleaned.replace(/\s*\}\|\s*(?![-.])/g, ' }o--|| ');
+
+    // Fix LLM generating two relationships joined by .. (e.g. }o--|| .. ||--o{)
+    cleaned = cleaned.replace(/--\|\|\s*\.\.\s*\|\|--/g, '--');
+
+    // If it has a colon, it's a relationship label. Fix unquoted labels.
+    if (cleaned.includes(':') && (!cleaned.includes('{') || cleaned.includes('||--'))) {
+      // Strip trailing brace if the LLM wrongly wrapped the relationship line
+      cleaned = cleaned.replace(/\}\s*$/, '');
+      
+      // Add quotes if the label is unquoted
+      cleaned = cleaned.replace(/:\s*([^"\n\r]+)\s*$/, (match, p1) => {
+          return ': "' + p1.trim() + '"';
+      });
+    }
+    
+    return cleaned;
+  });
+  
+  let cleanSource = cleanedLines.join('\n');
+
+  const processedMermaid = cleanSource.includes("direction")
+    ? cleanSource
+    : cleanSource.replace("erDiagram", "erDiagram\n    direction LR");
 
   const fitToScreen = (svgWidth: number, svgHeight: number) => {
     if (!containerRef.current || svgWidth === 0 || svgHeight === 0) return;
@@ -44,6 +74,7 @@ export default function DbSchemaViewer({
     const renderMermaid = async () => {
       setIsLoaded(false);
       try {
+        setParseError(null);
         const mermaid = (await import("mermaid")).default;
         mermaid.initialize({
           startOnLoad: false,
@@ -101,6 +132,7 @@ export default function DbSchemaViewer({
         setTimeout(() => setIsLoaded(true), 50);
       } catch (error) {
         console.error("Mermaid rendering error:", error);
+        setParseError(String(error));
       }
     };
 
@@ -158,7 +190,7 @@ export default function DbSchemaViewer({
   };
 
   const renderContent = () => {
-    if (mode === "source") {
+    if (mode === "source" || parseError) {
       return (
         <div
           style={{
@@ -169,8 +201,16 @@ export default function DbSchemaViewer({
             alignItems: "flex-start",
             padding: "24px",
             overflow: "auto",
+            flexDirection: "column",
           }}
         >
+          {parseError && mode === "diagram" && (
+            <div style={{ color: "#ef4444", marginBottom: "16px", fontSize: "12px", fontFamily: '"Geist Mono", monospace' }}>
+              <strong>Mermaid Parse Error:</strong><br/>
+              {parseError.split('\n')[0]}<br/><br/>
+              <em>Displaying raw ER text instead:</em>
+            </div>
+          )}
           <pre
             style={{
               margin: 0,
