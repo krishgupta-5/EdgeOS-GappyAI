@@ -16,6 +16,9 @@ import MarkdownRenderer from "@/app/chat/components/MarkdownRenderer";
 import FileContentRenderer from "@/app/chat/components/FileContentRenderer";
 import FileHeader from "@/app/chat/components/FileHeader";
 import InputArea from "@/app/chat/components/InputArea";
+import LiveActivityTimeline from "@/app/chat/components/LiveActivityTimeline";
+import FinalSummaryCard from "@/app/chat/components/FinalSummaryCard";
+import type { ProgressEvent } from "@/lib/pipeline/types";
 
 // ── EdgeOS Design Tokens (Onyx Minimal Palette) ──────────
 const T = {
@@ -46,6 +49,10 @@ export interface Message {
   options?: string[];
   notionUrl?: string;
   exportStatus?: string;
+  githubUrl?: string;
+  githubExportStatus?: string;
+  jiraUrl?: string;
+  jiraExportStatus?: string;
 }
 
 const initialMessages: Message[] = [];
@@ -140,14 +147,23 @@ const aiPhrases = [
   "Finalizing output...",
 ];
 
-const TypingStatusText = ({ artifact }: { artifact: string | null }) => {
+const exportPhrases = [
+  "Syncing with integrations...",
+  "Exporting to GitHub...",
+  "Setting up Jira project...",
+  "Publishing Notion docs...",
+];
+
+const TypingStatusText = ({ artifact, isExporting }: { artifact: string | null, isExporting?: boolean }) => {
   const [idx, setIdx] = useState(0);
+  const phrases = isExporting ? exportPhrases : aiPhrases;
+  
   useEffect(() => {
     const interval = setInterval(() => {
-      setIdx((prev) => (prev + 1) % aiPhrases.length);
+      setIdx((prev) => (prev + 1) % phrases.length);
     }, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [phrases]);
 
   const artifactMap: Record<string, string> = {
     initial: "System Architecture",
@@ -172,10 +188,10 @@ const TypingStatusText = ({ artifact }: { artifact: string | null }) => {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
       <span style={{ fontSize: "13px", fontWeight: 600, color: "#ffffff", fontFamily: T.font, letterSpacing: "0.02em" }}>
-        Generating {artifactName}
+        {isExporting ? "Exporting Project" : `Generating ${artifactName}`}
       </span>
       <span style={{ fontSize: "13px", color: T.textHint, fontFamily: T.font, animation: "typingFade 2s infinite" }}>
-        {aiPhrases[idx]}
+        {phrases[idx]}
       </span>
     </div>
   );
@@ -231,6 +247,7 @@ export default function ChatPanel({
     return "";
   });
   const [isTyping, setIsTyping] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [generatingArtifact, setGeneratingArtifact] = useState<ArtifactType | null>(null);
   const [markdownMode, setMarkdownMode] = useState<Record<string, "code" | "preview">>({});
   const [generatedData, setGeneratedData] = useState<any>(null);
@@ -249,6 +266,7 @@ export default function ChatPanel({
   } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
+  const [liveEvents, setLiveEvents] = useState<ProgressEvent[]>([]);
   const [showScrollDown, setShowScrollDown] = useState(false);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -293,6 +311,32 @@ export default function ChatPanel({
     setContextMenu(null);
   };
 
+  // Listen to SSE Events
+  useEffect(() => {
+    if (!sessionId) {
+      setLiveEvents([]);
+      return;
+    }
+    const eventSource = new EventSource(`/api/events?sessionId=${sessionId}`);
+    eventSource.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data) as ProgressEvent;
+        setLiveEvents((prev) => {
+          // Avoid duplicates based on type and source
+          if (prev.find(p => p.type === data.type && p.source === data.source && p.message === data.message)) return prev;
+          return [...prev, data];
+        });
+      } catch (err) {
+        console.error('Failed to parse SSE event', err);
+      }
+    };
+    eventSource.onerror = (err) => {
+      console.error('SSE Error', err);
+      eventSource.close();
+    };
+    return () => eventSource.close();
+  }, [sessionId]);
+
   // Load chat history
   useEffect(() => {
     let isMounted = true;
@@ -308,7 +352,7 @@ export default function ChatPanel({
         const res = await fetch(`/api/chat-history?sessionId=${sessionId}`, { cache: "no-store" });
         if (!res.ok) return;
         const resData = await res.json();
-        const { messages: rawAll = [], artifacts: rawArtifacts = {}, notionUrl, exportStatus } = resData;
+        const { messages: rawAll = [], artifacts: rawArtifacts = {}, notionUrl, exportStatus, githubUrl, githubExportStatus, jiraUrl, jiraExportStatus } = resData;
         const raw: any[] = [];
         for (const msg of rawAll) {
           const prev = raw[raw.length - 1];
@@ -424,14 +468,22 @@ export default function ChatPanel({
           }
         }
         
-        if (notionUrl || exportStatus) {
-          const finalMsg = historyMessages.find(m => m.id.includes('finalMarkdown') || (m.file && m.file.language === 'finalmarkdown'));
-          if (finalMsg) {
-            finalMsg.notionUrl = notionUrl;
-            finalMsg.exportStatus = exportStatus;
+        if (notionUrl || exportStatus || githubUrl || githubExportStatus || jiraUrl || jiraExportStatus) {
+          const finalMsgIndex = historyMessages.findIndex(m => m.file?.name === "final-spec.md");
+          if (finalMsgIndex !== -1) {
+            historyMessages[finalMsgIndex].notionUrl = notionUrl;
+            historyMessages[finalMsgIndex].exportStatus = exportStatus;
+            historyMessages[finalMsgIndex].githubUrl = githubUrl;
+            historyMessages[finalMsgIndex].githubExportStatus = githubExportStatus;
+            historyMessages[finalMsgIndex].jiraUrl = jiraUrl;
+            historyMessages[finalMsgIndex].jiraExportStatus = jiraExportStatus;
           } else if (historyMessages.length > 0) {
             historyMessages[historyMessages.length - 1].notionUrl = notionUrl;
             historyMessages[historyMessages.length - 1].exportStatus = exportStatus;
+            historyMessages[historyMessages.length - 1].githubUrl = githubUrl;
+            historyMessages[historyMessages.length - 1].githubExportStatus = githubExportStatus;
+            historyMessages[historyMessages.length - 1].jiraUrl = jiraUrl;
+            historyMessages[historyMessages.length - 1].jiraExportStatus = jiraExportStatus;
           }
         }
         
@@ -444,7 +496,13 @@ export default function ChatPanel({
           
           const isAwaitingAssistant = historyMessages.length > 0 && historyMessages[historyMessages.length - 1].role === 'user';
           const isAwaitingNotion = Object.keys(latestResult).includes('finalMarkdown') && exportStatus === 'PENDING';
-          if (isAwaitingAssistant || isAwaitingNotion) {
+          const isAwaitingGithub = Object.keys(latestResult).includes('finalMarkdown') && githubExportStatus === 'PENDING';
+          const isAwaitingJira = Object.keys(latestResult).includes('finalMarkdown') && jiraExportStatus === 'PENDING';
+          const awaitingExport = isAwaitingNotion || isAwaitingGithub || isAwaitingJira;
+          
+          setIsExporting(awaitingExport);
+
+          if (isAwaitingAssistant || awaitingExport) {
             pollingTimer = setTimeout(load, 3000);
           }
         }
@@ -545,7 +603,7 @@ export default function ChatPanel({
       const artifactToStep: Record<ArtifactType, Step> = { initial: "docs", config: "config", docker: "docker", markdown: "docs", folderStructure: "folder", apiDesign: "apiDesign", testingPlan: "testingPlan", userStories: "userStories", roadmap: "roadmap", deploymentGuide: "deploymentGuide", costEstimation: "costEstimation", projectTimeline: "projectTimeline", riskAnalysis: "riskAnalysis", finalMarkdown: "finalMarkdown", db: "db" };
       const step = artifactToStep[artifact] ?? "docs";
       const { content, file, options } = buildAssistantMessage(step, merged, !hasGeneratedConfig);
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), file, options, notionUrl: data.notionUrl, exportStatus: data.exportStatus }]);
+      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), file, options, notionUrl: data.notionUrl, exportStatus: data.exportStatus, githubUrl: data.githubUrl, githubExportStatus: data.githubExportStatus, jiraUrl: data.jiraUrl, jiraExportStatus: data.jiraExportStatus }]);
       
       // Dispatch event to tell sidebar to refresh its sessions list
       window.dispatchEvent(new CustomEvent('refresh-sessions'));
@@ -794,24 +852,9 @@ export default function ChatPanel({
                       )}
                     </div>
 
-                    {/* Option buttons & Notion link */}
-                    {(msg.options && msg.options.length > 0 || msg.notionUrl || msg.exportStatus) && msg.role === "assistant" && (
+                    {/* Option buttons */}
+                    {msg.options && msg.options.length > 0 && msg.role === "assistant" && (
                       <div style={{ display: "flex", gap: "8px", marginTop: "16px", flexWrap: "wrap", alignItems: "center" }}>
-                        {msg.notionUrl && msg.exportStatus === 'SUCCESS' && (
-                          <a href={msg.notionUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-                            <button
-                              style={{ padding: "6px 12px", background: T.accent, border: `1px solid ${T.accent}`, color: T.bg, fontSize: "12px", fontFamily: T.font, cursor: "pointer", transition: "all .15s", borderRadius: "6px", fontWeight: 500, display: "flex", alignItems: "center", gap: "6px" }}
-                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.9"; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}>
-                              📄 View Documentation
-                            </button>
-                          </a>
-                        )}
-                        {msg.exportStatus === 'FAILED' && (
-                          <div style={{ padding: "6px 12px", background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.3)", color: "#f87171", fontSize: "12px", fontFamily: T.font, borderRadius: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
-                            ⚠️ Documentation could not be exported to Notion.
-                          </div>
-                        )}
                         {msg.options?.map((option, i) => {
                           const isClicked = messages.some(m => m.role === "user" && m.content === option);
                           const isDisabled = isClicked || isTyping;
@@ -831,13 +874,28 @@ export default function ChatPanel({
               ))}
 
               {/* Typing indicator */}
-              {isTyping && (
+              {(isTyping || isExporting) && (
                 <div style={{ display: "flex", gap: "16px", padding: "24px 0" }}>
                   <div style={{ width: "24px", height: "24px", borderRadius: "4px", flexShrink: 0, background: "#ffffff", color: "#000000", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 600, fontFamily: T.font }}>E</div>
                   <div style={{ display: "flex", alignItems: "center", height: "24px" }}>
-                    <TypingStatusText artifact={generatingArtifact} />
+                    <TypingStatusText artifact={generatingArtifact} isExporting={isExporting} />
                   </div>
                 </div>
+              )}
+
+              {/* Live Timeline during generation/export */}
+              {(isTyping || isExporting) && liveEvents.length > 0 && (
+                <LiveActivityTimeline events={liveEvents} />
+              )}
+
+              {/* Final Summary Card after export finishes */}
+              {!isTyping && !isExporting && liveEvents.some(e => e.source !== 'pipeline') && (
+                <FinalSummaryCard 
+                  events={liveEvents}
+                  githubUrl={messages[messages.length - 1]?.githubUrl}
+                  notionUrl={messages[messages.length - 1]?.notionUrl}
+                  jiraUrl={messages[messages.length - 1]?.jiraUrl}
+                />
               )}
 
               <div ref={messagesEndRef} style={{ height: "40px" }} />
@@ -903,7 +961,7 @@ export default function ChatPanel({
                 handleInputChange={handleInputChange}
                 handleKeyDown={handleKeyDown}
                 handleSend={handleSend}
-                isTyping={isTyping}
+                isTyping={isTyping || isExporting}
               />
             </div>
           </div>

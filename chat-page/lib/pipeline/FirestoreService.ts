@@ -13,6 +13,7 @@ import type {
   ProjectState,
   GeneratedArtifact,
   ArtifactMetadata,
+  ProgressEvent,
 } from './types';
 
 // ─────────────────────────────────────────────
@@ -52,6 +53,7 @@ export async function loadProjectState(
           content: data.content,
           summary: data.summary ?? '',
           metadata: data.metadata ?? createDefaultMetadata(type),
+          structuredData: data.structuredData,
         };
         if (data.summary) {
           summaries[type] = data.summary;
@@ -97,6 +99,7 @@ export async function saveArtifact(
   content: string,
   summary?: string,
   metadata?: ArtifactMetadata,
+  structuredData?: any,
 ): Promise<void> {
   const docData: Record<string, any> = {
     type: artifactType,
@@ -107,6 +110,7 @@ export async function saveArtifact(
 
   if (summary) docData.summary = summary;
   if (metadata) docData.metadata = metadata;
+  if (structuredData !== undefined) docData.structuredData = structuredData;
 
   // Write with deterministic ID (artifact type) for O(1) reads
   await db
@@ -177,6 +181,12 @@ export async function saveSessionMetadata(
     notionUrl?: string;
     notionPageId?: string;
     exportStatus?: string;
+    githubUrl?: string;
+    githubRepository?: string;
+    githubExportStatus?: string;
+    jiraUrl?: string;
+    jiraProjectKey?: string;
+    jiraExportStatus?: string;
   },
 ): Promise<void> {
   const docData: Record<string, any> = {
@@ -191,6 +201,12 @@ export async function saveSessionMetadata(
   if (data.notionUrl) docData.notionUrl = data.notionUrl;
   if (data.notionPageId) docData.notionPageId = data.notionPageId;
   if (data.exportStatus) docData.exportStatus = data.exportStatus;
+  if (data.githubUrl) docData.githubUrl = data.githubUrl;
+  if (data.githubRepository) docData.githubRepository = data.githubRepository;
+  if (data.githubExportStatus) docData.githubExportStatus = data.githubExportStatus;
+  if (data.jiraUrl) docData.jiraUrl = data.jiraUrl;
+  if (data.jiraProjectKey) docData.jiraProjectKey = data.jiraProjectKey;
+  if (data.jiraExportStatus) docData.jiraExportStatus = data.jiraExportStatus;
 
   await db
     .collection('sessions')
@@ -320,3 +336,33 @@ function createDefaultMetadata(artifactType: ArtifactType | string): ArtifactMet
     retryCount: 0,
   };
 }
+
+// ─────────────────────────────────────────────
+// Event Streams
+// ─────────────────────────────────────────────
+
+/**
+ * Save a real-time progress event for SSE timelines.
+ */
+export async function saveEvent(
+  sessionId: string,
+  event: Omit<ProgressEvent, 'timestamp'>
+): Promise<void> {
+  try {
+    const docRef = db.collection('sessions').doc(sessionId).collection('events').doc();
+    await docRef.set({
+      id: docRef.id,
+      ...event,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error(JSON.stringify({
+      level: 'error',
+      msg: 'Failed to save progress event',
+      sessionId,
+      err: String(err),
+      ts: Date.now()
+    }));
+  }
+}
+

@@ -110,6 +110,8 @@ export interface GeneratedArtifact {
   summary: string;
   /** Generation metadata */
   metadata: ArtifactMetadata;
+  /** Structured internal JSON data extracted from the LLM response */
+  structuredData?: any;
 }
 
 // ─────────────────────────────────────────────
@@ -234,6 +236,15 @@ export interface DbSchema {
 // ─────────────────────────────────────────────
 // Legacy Compatibility Types
 // ─────────────────────────────────────────────
+
+export interface ProgressEvent {
+  type: 'GENERATION_STARTED' | 'ARTIFACT_GENERATED' | 'EXPORT_STARTED' | 'EXPORT_PROGRESS' | 'EXPORT_COMPLETED' | 'EXPORT_FAILED';
+  source: 'pipeline' | 'github' | 'notion' | 'jira';
+  message: string;
+  metadata?: any;
+  durationMs?: number;
+  timestamp: string;
+}
 
 /**
  * Matches the existing GenerateResult shape used by the frontend.

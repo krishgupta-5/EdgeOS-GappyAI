@@ -74,7 +74,14 @@ export async function GET(req: Request) {
     
     const sessionData = sessionSnapshot.exists ? sessionSnapshot.data() : {};
 
-    return NextResponse.json({ messages, artifacts, notionUrl: sessionData?.notionUrl, exportStatus: sessionData?.exportStatus });
+    return NextResponse.json({ 
+      messages, 
+      artifacts, 
+      notionUrl: sessionData?.notionUrl, 
+      exportStatus: sessionData?.exportStatus,
+      githubUrl: sessionData?.githubUrl,
+      githubExportStatus: sessionData?.githubExportStatus
+    });
   } catch (error) {
     console.error("Failed to load chat history:", error);
     return NextResponse.json(
