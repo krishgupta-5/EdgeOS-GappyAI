@@ -196,6 +196,12 @@ export async function generateArtifact(
   let tokensUsedTotal = 0;
   const startTime = Date.now();
 
+  firestoreService.saveEvent(state.sessionId, {
+    type: 'GENERATION_STARTED',
+    source: 'pipeline',
+    message: `Generating ${artifactType}...`,
+  }).catch(err => log.error('Failed to emit GENERATION_STARTED', { err: String(err) }));
+
   // Explicitly generate missing dependencies before continuing
   if (mode === 'generate' && artifactType !== 'config') {
     const generatedSet = new Set(Object.keys(state.artifacts) as ArtifactType[]);
@@ -326,10 +332,35 @@ export async function generateArtifact(
     mode,
   );
 
+  let structuredData: any = undefined;
+  if (artifactType === 'folderStructure') {
+    // Try to find ```json block first
+    let jsonMatch = groqResult.content.match(/```(?:json)?\s*(\[\s*\{[\s\S]*?\}\s*\])\s*```/);
+    if (!jsonMatch) {
+      // Fallback: look for a raw JSON array block (non-greedy to avoid parse errors on trailing text)
+      // Matches any JSON array containing objects
+      jsonMatch = groqResult.content.match(/(\[\s*\{[\s\S]*?\}\s*\])/);
+    }
+    
+    if (jsonMatch) {
+      try {
+        structuredData = JSON.parse(jsonMatch[1]);
+        const originalContent = groqResult.content;
+        groqResult.content = groqResult.content.replace(/```(?:json)?\s*\[\s*\{[\s\S]*?\}\s*\]\s*```/, '').trim();
+        if (groqResult.content === originalContent) { 
+           groqResult.content = groqResult.content.replace(/\[\s*\{[\s\S]*?\}\s*\]/, '').trim();
+        }
+      } catch (err) {
+        log.warn('Failed to parse folderStructure JSON', { err });
+      }
+    }
+  }
+
   const generatedArtifact: GeneratedArtifact = {
     content: groqResult.content,
     summary,
     metadata,
+    structuredData,
   };
 
   // 7. Update project state
@@ -348,6 +379,7 @@ export async function generateArtifact(
       groqResult.content,
       summary,
       metadata,
+      structuredData,
     );
   } catch (error) {
     firestoreSaveStatus = `failed: ${(error as Error).message}`;
@@ -378,6 +410,14 @@ ${promptStr}
   console.log(debugLog);
 
   tokensUsedTotal += groqResult.usage.totalTokens;
+  const durationMs = Date.now() - startTime;
+  firestoreService.saveEvent(state.sessionId, {
+    type: 'ARTIFACT_GENERATED',
+    source: 'pipeline',
+    message: `${artifactType} generated`,
+    durationMs,
+  }).catch(err => log.error('Failed to emit ARTIFACT_GENERATED', { err: String(err) }));
+
   return {
     artifact: generatedArtifact,
     tokensUsed: tokensUsedTotal,
@@ -518,6 +558,12 @@ export async function generateDbSchema(
   const markdownSummary = state.summaries.markdown || state.projectDescription;
   const startTime = Date.now();
 
+  firestoreService.saveEvent(state.sessionId, {
+    type: 'GENERATION_STARTED',
+    source: 'pipeline',
+    message: `Generating db schema...`,
+  }).catch(err => log.error('Failed to emit GENERATION_STARTED for db', { err: String(err) }));
+
   try {
     const res = await Promise.race([
       fetch(webhookUrl, {
@@ -578,6 +624,14 @@ export async function generateDbSchema(
       `Database schema with entities defined via Mermaid ER diagram.`,
       metadata,
     );
+
+    const durationMs = Date.now() - startTime;
+    firestoreService.saveEvent(state.sessionId, {
+      type: 'ARTIFACT_GENERATED',
+      source: 'pipeline',
+      message: `db schema generated`,
+      durationMs,
+    }).catch(err => log.error('Failed to emit ARTIFACT_GENERATED for db', { err: String(err) }));
 
     return dbSchema;
   } catch (err) {

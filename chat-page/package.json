@@ -14,6 +14,7 @@
     "@clerk/themes": "^2.4.57",
     "@clerk/ui": "^1.6.3",
     "@notionhq/client": "^5.22.0",
+    "@octokit/rest": "^22.0.1",
     "@tabler/icons-react": "^3.44.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

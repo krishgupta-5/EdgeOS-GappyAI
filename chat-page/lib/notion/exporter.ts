@@ -490,7 +490,17 @@ function formatArtifactContent(type: string, content: string): string {
 // Main Export Function
 // ─────────────────────────────────────────────
 
-export async function exportToNotion(state: ProjectState, title: string, accessToken: string, rootPageId: string) {
+export async function exportToNotion(
+  state: ProjectState, 
+  title: string, 
+  accessToken: string, 
+  rootPageId: string, 
+  logSummary: any = {},
+  onProgress?: (msg: string) => void
+) {
+  const startTime = Date.now();
+  console.log(`[NOTION] Export Started`);
+  onProgress?.('Initializing Notion export...');
   if (!rootPageId || !accessToken) {
     console.error('Notion credentials or root page ID missing.');
     return null;
@@ -574,6 +584,7 @@ export async function exportToNotion(state: ProjectState, title: string, accessT
       divider: {}
     });
 
+    onProgress?.('Creating parent page...');
     let parentPage;
     try {
       parentPage = await retryNotionCall(() => notion.pages.create({
@@ -644,6 +655,7 @@ export async function exportToNotion(state: ProjectState, title: string, accessT
       const firstChunk = allBlocks.slice(0, 100);
 
       const meta = artifactMeta[type] || { name: type.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim(), emoji: '📄' };
+      onProgress?.(`Uploading ${meta.name}...`);
 
       try {
         const childPage = await retryNotionCall(() => notion.pages.create({
@@ -670,9 +682,16 @@ export async function exportToNotion(state: ProjectState, title: string, accessT
       }
     }
 
+    console.log(`[NOTION] Pages Created`);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[NOTION] Export Completed (${duration}s)`);
+    logSummary.Notion = 'SUCCESS';
+    onProgress?.('Documentation exported.');
+
     return { notionPageId: parentId, notionUrl: parentUrl };
   } catch (err) {
-    console.error('Failed to create Notion parent page:', err);
+    console.error(`[NOTION] Export Failed:`, err);
+    logSummary.Notion = 'FAILED';
     return null;
   }
 }
