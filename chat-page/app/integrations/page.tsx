@@ -113,7 +113,19 @@ const CATEGORIES: Category[] = ["All", "Workspace", "Communication", "Developmen
 
 // ─── Child Components ───────────────────────────────────────────────────────
 
-function IntegrationCard({ integration, onToggle, children }: { integration: Integration, onToggle: (id: string) => void, children?: React.ReactNode }) {
+function IntegrationCard({ 
+  integration, 
+  onConnect, 
+  onConfigure,
+  onToggleActive,
+  children 
+}: { 
+  integration: Integration, 
+  onConnect?: (e: React.MouseEvent) => void, 
+  onConfigure?: (e: React.MouseEvent) => void,
+  onToggleActive?: (id: string, e: React.MouseEvent) => void,
+  children?: React.ReactNode 
+}) {
   const [hover, setHover] = useState(false);
 
   return (
@@ -159,7 +171,17 @@ function IntegrationCard({ integration, onToggle, children }: { integration: Int
       {/* Footer / Toggle Area */}
       <div style={{ paddingTop: "20px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <button
-          onClick={() => onToggle(integration.id)}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (integration.connected && onConfigure) {
+              onConfigure(e);
+            } else if (!integration.connected && onConnect) {
+              onConnect(e);
+            } else if (onToggleActive) {
+              onToggleActive(integration.id, e);
+            }
+          }}
           style={{
             background: integration.connected ? "transparent" : T.text,
             color: integration.connected ? T.text : T.bg,
@@ -192,7 +214,17 @@ function IntegrationCard({ integration, onToggle, children }: { integration: Int
 
         {/* Minimal Toggle Switch */}
         <div
-          onClick={() => onToggle(integration.id)}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (integration.connected && onConfigure) {
+              onConfigure(e);
+            } else if (!integration.connected && onConnect) {
+              onConnect(e);
+            } else if (onToggleActive) {
+              onToggleActive(integration.id, e);
+            }
+          }}
           style={{
             width: "36px", height: "20px", borderRadius: "10px", cursor: "pointer",
             background: integration.connected ? T.text : "rgba(255,255,255,0.1)",
@@ -223,34 +255,60 @@ export default function IntegrationsPanel() {
   const [integrations, setIntegrations] = useState<Integration[]>(INTEGRATIONS);
 
   const [notionData, setNotionData] = useState<{ connected: boolean; workspaceName?: string; pages?: any[]; defaultParentPageId?: string } | null>(null);
-  const [loadingNotion, setLoadingNotion] = useState(true);
+  const [githubData, setGithubData] = useState<{ connected: boolean; username?: string; avatarUrl?: string; repoVisibility?: string } | null>(null);
+  const [jiraData, setJiraData] = useState<{ connected: boolean; workspaceName?: string; accountName?: string; projectPreference?: string } | null>(null);
+  const [loadingIntegrations, setLoadingIntegrations] = useState(true);
   const [selectedPage, setSelectedPage] = useState("");
+  const [githubVisibility, setGithubVisibility] = useState("private");
+  const [jiraPreference, setJiraPreference] = useState("CREATE_NEW");
+  
   const [savingPage, setSavingPage] = useState(false);
-  const [disconnecting, setDisconnecting] = useState(false);
+  const [savingGithub, setSavingGithub] = useState(false);
+  const [savingJira, setSavingJira] = useState(false);
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState<{ [key: string]: boolean }>({});
+  const [error, setError] = useState(false);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/notion/pages")
-      .then((res) => res.json())
-      .then((d) => {
-        setNotionData(d);
-        if (d.defaultParentPageId) setSelectedPage(d.defaultParentPageId);
+  const fetchData = () => {
+    setLoadingIntegrations(true);
+    setError(false);
+    Promise.all([
+      fetch("/api/notion/pages").then((res) => { if (!res.ok) throw new Error(); return res.json(); }),
+      fetch("/api/integrations").then((res) => { if (!res.ok) throw new Error(); return res.json(); })
+    ]).then(([notionPages, allIntegrations]) => {
+      // Notion
+      setNotionData(notionPages);
+      if (notionPages.defaultParentPageId) setSelectedPage(notionPages.defaultParentPageId);
+      
+      // GitHub & Jira
+      setGithubData(allIntegrations.github ? { ...allIntegrations.github, connected: !!allIntegrations.github.accessToken } : { connected: false });
+      if (allIntegrations.github?.repoVisibility) setGithubVisibility(allIntegrations.github.repoVisibility);
+      
+      setJiraData(allIntegrations.jira ? { ...allIntegrations.jira, connected: !!allIntegrations.jira.accessToken } : { connected: false });
+      if (allIntegrations.jira?.projectPreference) setJiraPreference(allIntegrations.jira.projectPreference);
 
-        setIntegrations(
-          INTEGRATIONS.map((i) =>
-            i.id === "notion" ? { ...i, connected: !!d.connected } : i
-          )
-        );
-        setLoadingNotion(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setLoadingNotion(false);
-      });
+      setIntegrations(
+        INTEGRATIONS.map((i) => {
+          if (i.id === "notion") return { ...i, connected: !!notionPages.connected };
+          if (i.id === "github") return { ...i, connected: !!allIntegrations.github?.accessToken };
+          if (i.id === "jira") return { ...i, connected: !!allIntegrations.jira?.accessToken };
+          return i;
+        })
+      );
+      setLoadingIntegrations(false);
+    }).catch((err) => {
+      console.error(err);
+      setError(true);
+      setLoadingIntegrations(false);
+    });
+  };
+
+  useEffect(() => {
+    fetchData();
   }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -297,39 +355,79 @@ export default function IntegrationsPanel() {
     }
   };
 
-  const handleDisconnect = async () => {
-    setDisconnecting(true);
+  const handleDisconnect = async (id: string) => {
+    setDisconnecting(id);
     try {
-      await fetch("/api/notion/disconnect", { method: "DELETE" });
-      setNotionData({ connected: false });
+      if (id === "notion") {
+        await fetch("/api/notion/disconnect", { method: "DELETE" });
+        setNotionData({ connected: false });
+      } else if (id === "github") {
+        await fetch("/api/github/disconnect", { method: "DELETE" });
+        setGithubData({ connected: false });
+      } else if (id === "jira") {
+        await fetch("/api/jira/disconnect", { method: "DELETE" });
+        setJiraData({ connected: false });
+      }
+      
       setIntegrations((prev) =>
         prev.map((i) =>
-          i.id === "notion" ? { ...i, connected: false } : i
+          i.id === id ? { ...i, connected: false } : i
         )
       );
-      setShowSettings(p => ({ ...p, notion: false }));
+      setShowSettings(p => ({ ...p, [id]: false }));
     } catch (e) {
       console.error(e);
     } finally {
-      setDisconnecting(false);
+      setDisconnecting(null);
     }
   };
 
-  const toggleConnection = (id: string) => {
-    const integration = integrations.find(i => i.id === id);
-    if (id === "notion") {
-      if (integration?.connected) {
-        setShowSettings(p => ({ ...p, [id]: !p[id] }));
-      } else {
-        window.location.href = "/api/notion/connect";
-      }
-    } else {
-      setIntegrations((prev) =>
-        prev.map((i) =>
-          i.id === id ? { ...i, connected: !i.connected } : i
-        )
-      );
-    }
+  const handleGithubVisibility = async (visibility: string) => {
+    setGithubVisibility(visibility);
+    setSavingGithub(true);
+    try {
+      await fetch("/api/github/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repoVisibility: visibility })
+      });
+    } catch (e) { console.error(e); }
+    finally { setSavingGithub(false); }
+  };
+
+  const handleJiraPreference = async (pref: string) => {
+    setJiraPreference(pref);
+    setSavingJira(true);
+    try {
+      await fetch("/api/jira/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectPreference: pref })
+      });
+    } catch (e) { console.error(e); }
+    finally { setSavingJira(false); }
+  };
+
+  const handleConnect = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    window.location.href = `/api/${id}/connect`;
+  };
+
+  const handleConfigure = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowSettings(p => ({ ...p, [id]: !p[id] }));
+  };
+
+  const handleToggleActive = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIntegrations((prev) =>
+      prev.map((i) =>
+        i.id === id ? { ...i, connected: !i.connected } : i
+      )
+    );
   };
 
   const filteredIntegrations = integrations.filter(
@@ -402,116 +500,299 @@ export default function IntegrationsPanel() {
             {/* ───────────────────────────────────────────── */}
             {/* FILTERS                                       */}
             {/* ───────────────────────────────────────────── */}
-            <div style={{
-              display: "flex", alignItems: "center", gap: "12px", marginBottom: "40px",
-              flexWrap: "wrap", animation: "fadeUp 0.4s ease-out 0.1s both"
-            }}>
-              {CATEGORIES.map((category) => {
-                const isActive = activeCategory === category;
-                return (
-                  <button
-                    key={category}
-                    onClick={() => setActiveCategory(category)}
-                    style={{
-                      padding: "8px 20px", borderRadius: "100px", fontSize: "13px", fontWeight: 500, fontFamily: T.font,
-                      cursor: "pointer", transition: "all 0.2s ease", whiteSpace: "nowrap",
-                      background: isActive ? T.text : "transparent",
-                      color: isActive ? T.bg : T.textMuted,
-                      border: `1px solid ${isActive ? T.text : T.border}`,
-                    }}
-                    onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = T.text; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; } }}
-                    onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = T.textMuted; e.currentTarget.style.background = "transparent"; } }}
-                  >
-                    {category}
-                  </button>
-                );
-              })}
-            </div>
+            {!error && !(!loadingIntegrations && integrations.every(i => !i.connected)) && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: "12px", marginBottom: "40px",
+                flexWrap: "wrap", animation: "fadeUp 0.4s ease-out 0.1s both"
+              }}>
+                {CATEGORIES.map((category) => {
+                  const isActive = activeCategory === category;
+                  return (
+                    <button
+                      key={category}
+                      onClick={() => setActiveCategory(category)}
+                      style={{
+                        padding: "8px 20px", borderRadius: "100px", fontSize: "13px", fontWeight: 500, fontFamily: T.font,
+                        cursor: "pointer", transition: "all 0.2s ease", whiteSpace: "nowrap",
+                        background: isActive ? T.text : "transparent",
+                        color: isActive ? T.bg : T.textMuted,
+                        border: `1px solid ${isActive ? T.text : T.border}`,
+                      }}
+                      onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = T.text; e.currentTarget.style.background = "rgba(255,255,255,0.03)"; } }}
+                      onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = T.textMuted; e.currentTarget.style.background = "transparent"; } }}
+                    >
+                      {category}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ───────────────────────────────────────────── */}
+            {/* ERROR STATE                                   */}
+            {/* ───────────────────────────────────────────── */}
+            {error && (
+              <div style={{
+                background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.2)",
+                borderRadius: "12px", padding: "24px", display: "flex", alignItems: "center", justifyContent: "space-between",
+                marginBottom: "24px", animation: "fadeUp 0.3s ease-out both"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", color: "#f87171", fontSize: "14px" }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  </svg>
+                  Unable to load integrations.
+                </div>
+                <button
+                  onClick={fetchData}
+                  style={{
+                    background: "rgba(239, 68, 68, 0.2)", border: "none", color: "#fca5a5",
+                    padding: "8px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 500, cursor: "pointer", transition: "all 0.2s"
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "rgba(239, 68, 68, 0.3)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "rgba(239, 68, 68, 0.2)"}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
 
             {/* ───────────────────────────────────────────── */}
             {/* INTEGRATIONS GRID                             */}
             {/* ───────────────────────────────────────────── */}
-            <div style={{
-              display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "24px",
-              animation: "fadeUp 0.4s ease-out 0.2s both"
-            }}>
-              {filteredIntegrations.map((integration) => (
-                <IntegrationCard
-                  key={integration.id}
-                  integration={integration}
-                  onToggle={toggleConnection}
-                >
-                  {/* EXPANDABLE SETTINGS SECTION */}
-                  {integration.id === "notion" && showSettings["notion"] && notionData?.connected && (
-                    <div style={{ marginTop: "24px", paddingTop: "24px", borderTop: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: "16px", animation: "fadeUp 0.3s ease-out both" }}>
-
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: "13px", color: T.textMuted }}>Connected Workspace</span>
-                        <span style={{ fontSize: "13px", color: T.text, fontWeight: 500 }}>{notionData.workspaceName}</span>
+            {!error && !loadingIntegrations && integrations.every(i => !i.connected) ? (
+              <div style={{
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                padding: "64px 24px", background: T.surface, border: `1px dashed ${T.borderHover}`, borderRadius: "16px",
+                textAlign: "center", animation: "fadeUp 0.4s ease-out 0.2s both"
+              }}>
+                <div style={{ width: "48px", height: "48px", borderRadius: "24px", background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px", color: T.textMuted }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                </div>
+                <h3 style={{ fontSize: "16px", fontWeight: 500, color: T.text, margin: "0 0 8px 0" }}>No integrations connected yet.</h3>
+                <p style={{ fontSize: "14px", color: T.textMuted, margin: "0 0 32px 0", maxWidth: "400px", lineHeight: "1.6" }}>
+                  Connect your existing tools to automatically export generated planning artifacts and documentation directly into your team's workspace.
+                </p>
+                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
+                  <button
+                    onClick={() => window.location.href = "/api/github/connect"}
+                    style={{ padding: "10px 20px", background: T.text, color: T.bg, border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, fontFamily: T.font, cursor: "pointer", transition: "opacity 0.2s" }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = "0.85"} onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+                  >Connect GitHub</button>
+                  <button
+                    onClick={() => window.location.href = "/api/notion/connect"}
+                    style={{ padding: "10px 20px", background: T.text, color: T.bg, border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, fontFamily: T.font, cursor: "pointer", transition: "opacity 0.2s" }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = "0.85"} onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+                  >Connect Notion</button>
+                  <button
+                    onClick={() => window.location.href = "/api/jira/connect"}
+                    style={{ padding: "10px 20px", background: T.text, color: T.bg, border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, fontFamily: T.font, cursor: "pointer", transition: "opacity 0.2s" }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = "0.85"} onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+                  >Connect Jira</button>
+                </div>
+              </div>
+            ) : !error && (
+              <div style={{
+                display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "24px",
+                animation: "fadeUp 0.4s ease-out 0.2s both"
+              }}>
+                {loadingIntegrations ? (
+                  [1, 2, 3, 4].map(i => (
+                    <div key={i} style={{ display: "flex", flexDirection: "column", background: T.surface, border: `1px solid ${T.border}`, borderRadius: "16px", padding: "24px", animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px" }}>
+                        <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "rgba(255,255,255,0.05)" }} />
+                        <div style={{ width: "60px", height: "24px", borderRadius: "6px", background: "rgba(255,255,255,0.05)" }} />
                       </div>
-
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: "13px", color: T.textMuted }}>Default Parent Page</span>
-                        {/* CUSTOM STYLED SELECT TO FIX THE UGLY BROWSER DEFAULT */}
-                        <div style={{ position: "relative" }}>
-                          <select
-                            value={selectedPage}
-                            onChange={(e) => handleSavePage(e.target.value)}
-                            disabled={savingPage}
-                            className="custom-select"
-                            style={{
-                              appearance: "none",
-                              WebkitAppearance: "none",
-                              background: T.surfaceHover,
-                              border: `1px solid ${T.borderHover}`,
-                              color: T.text,
-                              padding: "8px 32px 8px 12px",
-                              borderRadius: "8px",
-                              fontSize: "13px",
-                              fontFamily: T.font,
-                              outline: "none",
-                              width: "200px",
-                              cursor: savingPage ? "not-allowed" : "pointer",
-                              textOverflow: "ellipsis"
-                            }}
-                          >
-                            <option value="" disabled style={{ background: "#18181b", color: "#fff" }}>Select a page...</option>
-                            {notionData.pages?.map(p => (
-                              <option key={p.id} value={p.id} style={{ background: "#18181b", color: "#fff" }}>{p.title}</option>
-                            ))}
-                          </select>
-                          {/* Custom Dropdown Arrow */}
-                          <svg style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="6 9 12 15 18 9"></polyline>
-                          </svg>
-                        </div>
+                      <div style={{ width: "120px", height: "20px", borderRadius: "4px", background: "rgba(255,255,255,0.05)", marginBottom: "12px" }} />
+                      <div style={{ width: "100%", height: "14px", borderRadius: "4px", background: "rgba(255,255,255,0.05)", marginBottom: "8px" }} />
+                      <div style={{ width: "80%", height: "14px", borderRadius: "4px", background: "rgba(255,255,255,0.05)", marginBottom: "24px" }} />
+                      <div style={{ paddingTop: "20px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between" }}>
+                        <div style={{ width: "100px", height: "32px", borderRadius: "8px", background: "rgba(255,255,255,0.05)" }} />
+                        <div style={{ width: "36px", height: "20px", borderRadius: "10px", background: "rgba(255,255,255,0.05)" }} />
                       </div>
+                    </div>
+                  ))
+                ) : (
+                  filteredIntegrations.map((integration) => (
+                    <IntegrationCard
+                        key={integration.id}
+                        integration={integration}
+                        onConnect={["notion", "github", "jira"].includes(integration.id) ? (e) => handleConnect(integration.id, e) : undefined}
+                        onConfigure={["notion", "github", "jira"].includes(integration.id) ? (e) => handleConfigure(integration.id, e) : undefined}
+                        onToggleActive={!["notion", "github", "jira"].includes(integration.id) ? (id, e) => handleToggleActive(id, e) : undefined}
+                      >
+                      {/* EXPANDABLE SETTINGS SECTION */}
+                      {integration.id === "notion" && showSettings["notion"] && notionData?.connected && (
+                        <div style={{ marginTop: "24px", paddingTop: "24px", borderTop: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: "16px", animation: "fadeUp 0.3s ease-out both" }}>
 
-                      {!selectedPage && (
-                        <div style={{ fontSize: "12px", color: "#f59e0b", textAlign: "right", marginTop: "-4px" }}>
-                          Select a parent page to enable automatic exports.
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: "13px", color: T.textMuted }}>Connected Workspace</span>
+                            <span style={{ fontSize: "13px", color: T.text, fontWeight: 500 }}>{notionData.workspaceName}</span>
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: "13px", color: T.textMuted }}>Default Parent Page</span>
+                            {/* CUSTOM STYLED SELECT TO FIX THE UGLY BROWSER DEFAULT */}
+                            <div style={{ position: "relative" }}>
+                              <select
+                                value={selectedPage}
+                                onChange={(e) => handleSavePage(e.target.value)}
+                                disabled={savingPage}
+                                className="custom-select"
+                                style={{
+                                  appearance: "none",
+                                  WebkitAppearance: "none",
+                                  background: T.surfaceHover,
+                                  border: `1px solid ${T.borderHover}`,
+                                  color: T.text,
+                                  padding: "8px 32px 8px 12px",
+                                  borderRadius: "8px",
+                                  fontSize: "13px",
+                                  fontFamily: T.font,
+                                  outline: "none",
+                                  width: "200px",
+                                  cursor: savingPage ? "not-allowed" : "pointer",
+                                  textOverflow: "ellipsis"
+                                }}
+                              >
+                                <option value="" disabled style={{ background: "#18181b", color: "#fff" }}>Select a page...</option>
+                                {notionData.pages?.map(p => (
+                                  <option key={p.id} value={p.id} style={{ background: "#18181b", color: "#fff" }}>{p.title}</option>
+                                ))}
+                              </select>
+                              {/* Custom Dropdown Arrow */}
+                              <svg style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                              </svg>
+                            </div>
+                          </div>
+
+                          {!selectedPage && (
+                            <div style={{ fontSize: "12px", color: "#f59e0b", textAlign: "right", marginTop: "-4px" }}>
+                              Select a parent page to enable automatic exports.
+                            </div>
+                          )}
+
+                          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+                            <button
+                              onClick={() => handleDisconnect("notion")}
+                              disabled={disconnecting === "notion"}
+                              style={{
+                                padding: "8px 16px", background: "transparent", border: "1px solid rgba(239, 68, 68, 0.3)", color: "#f87171",
+                                borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: disconnecting === "notion" ? "not-allowed" : "pointer", transition: "all 0.2s ease", opacity: disconnecting === "notion" ? 0.5 : 1
+                              }}
+                              onMouseEnter={(e) => { if (disconnecting !== "notion") { e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)"; e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.5)"; } }}
+                              onMouseLeave={(e) => { if (disconnecting !== "notion") { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.3)"; } }}
+                            >
+                              Disconnect Notion
+                            </button>
+                          </div>
                         </div>
                       )}
 
-                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
-                        <button
-                          onClick={handleDisconnect}
-                          disabled={disconnecting}
-                          style={{
-                            padding: "8px 16px", background: "transparent", border: "1px solid rgba(239, 68, 68, 0.3)", color: "#f87171",
-                            borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: disconnecting ? "not-allowed" : "pointer", transition: "all 0.2s ease", opacity: disconnecting ? 0.5 : 1
-                          }}
-                          onMouseEnter={(e) => { if (!disconnecting) { e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)"; e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.5)"; } }}
-                          onMouseLeave={(e) => { if (!disconnecting) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.3)"; } }}
-                        >
-                          Disconnect Notion
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </IntegrationCard>
-              ))}
-            </div>
+                      {/* GITHUB SETTINGS SECTION */}
+                      {integration.id === "github" && showSettings["github"] && githubData?.connected && (
+                        <div style={{ marginTop: "24px", paddingTop: "24px", borderTop: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: "16px", animation: "fadeUp 0.3s ease-out both" }}>
+                          
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: "13px", color: T.textMuted }}>Connected Account</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              {githubData.avatarUrl && <img src={githubData.avatarUrl} alt="Avatar" width="20" height="20" style={{ borderRadius: "50%" }} />}
+                              <span style={{ fontSize: "13px", color: T.text, fontWeight: 500 }}>{githubData.username}</span>
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: "13px", color: T.textMuted }}>Repository Visibility</span>
+                            <div style={{ position: "relative" }}>
+                              <select
+                                value={githubVisibility}
+                                onChange={(e) => handleGithubVisibility(e.target.value)}
+                                disabled={savingGithub}
+                                className="custom-select"
+                                style={{
+                                  appearance: "none", WebkitAppearance: "none", background: T.surfaceHover, border: `1px solid ${T.borderHover}`, color: T.text, padding: "8px 32px 8px 12px", borderRadius: "8px", fontSize: "13px", fontFamily: T.font, outline: "none", width: "200px", cursor: savingGithub ? "not-allowed" : "pointer"
+                                }}
+                              >
+                                <option value="private" style={{ background: "#18181b", color: "#fff" }}>Private (Recommended)</option>
+                                <option value="public" style={{ background: "#18181b", color: "#fff" }}>Public</option>
+                              </select>
+                              <svg style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                              </svg>
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+                            <button
+                              onClick={() => handleDisconnect("github")}
+                              disabled={disconnecting === "github"}
+                              style={{
+                                padding: "8px 16px", background: "transparent", border: "1px solid rgba(239, 68, 68, 0.3)", color: "#f87171", borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: disconnecting === "github" ? "not-allowed" : "pointer", transition: "all 0.2s ease", opacity: disconnecting === "github" ? 0.5 : 1
+                              }}
+                              onMouseEnter={(e) => { if (disconnecting !== "github") { e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)"; e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.5)"; } }}
+                              onMouseLeave={(e) => { if (disconnecting !== "github") { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.3)"; } }}
+                            >
+                              Disconnect GitHub
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* JIRA SETTINGS SECTION */}
+                      {integration.id === "jira" && showSettings["jira"] && jiraData?.connected && (
+                        <div style={{ marginTop: "24px", paddingTop: "24px", borderTop: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: "16px", animation: "fadeUp 0.3s ease-out both" }}>
+                          
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: "13px", color: T.textMuted }}>Connected Workspace</span>
+                            <span style={{ fontSize: "13px", color: T.text, fontWeight: 500 }}>{jiraData.workspaceName}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: "13px", color: T.textMuted }}>Connected Account</span>
+                            <span style={{ fontSize: "13px", color: T.text, fontWeight: 500 }}>{jiraData.accountName}</span>
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: "13px", color: T.textMuted }}>Project Preference</span>
+                            <div style={{ position: "relative" }}>
+                              <select
+                                value={jiraPreference}
+                                onChange={(e) => handleJiraPreference(e.target.value)}
+                                disabled={savingJira}
+                                className="custom-select"
+                                style={{
+                                  appearance: "none", WebkitAppearance: "none", background: T.surfaceHover, border: `1px solid ${T.borderHover}`, color: T.text, padding: "8px 32px 8px 12px", borderRadius: "8px", fontSize: "13px", fontFamily: T.font, outline: "none", width: "200px", cursor: savingJira ? "not-allowed" : "pointer"
+                                }}
+                              >
+                                <option value="CREATE_NEW" style={{ background: "#18181b", color: "#fff" }}>Create New Project</option>
+                                <option value="SELECT_EXISTING" style={{ background: "#18181b", color: "#fff" }}>Select Existing</option>
+                              </select>
+                              <svg style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                              </svg>
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+                            <button
+                              onClick={() => handleDisconnect("jira")}
+                              disabled={disconnecting === "jira"}
+                              style={{
+                                padding: "8px 16px", background: "transparent", border: "1px solid rgba(239, 68, 68, 0.3)", color: "#f87171", borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: disconnecting === "jira" ? "not-allowed" : "pointer", transition: "all 0.2s ease", opacity: disconnecting === "jira" ? 0.5 : 1
+                              }}
+                              onMouseEnter={(e) => { if (disconnecting !== "jira") { e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)"; e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.5)"; } }}
+                              onMouseLeave={(e) => { if (disconnecting !== "jira") { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.3)"; } }}
+                            >
+                              Disconnect Jira
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </IntegrationCard>
+                  ))
+                )}
+              </div>
+            )}
 
           </div>
         </div>
@@ -523,6 +804,10 @@ export default function IntegrationsPanel() {
         @keyframes fadeUp { 
           from { opacity: 0; transform: translateY(12px); } 
           to { opacity: 1; transform: translateY(0); } 
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: .5; }
         }
         select option {
           background-color: #18181b;

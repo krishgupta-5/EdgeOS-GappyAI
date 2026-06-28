@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   const error = searchParams.get('error');
 
   if (error) {
-    return NextResponse.redirect(new URL('/settings?github_error=access_denied', req.url));
+    return NextResponse.redirect(new URL('/integrations?github_error=access_denied', req.url));
   }
 
   if (!code) {
@@ -57,7 +57,7 @@ export async function GET(req: Request) {
 
     if (!tokenRes.ok) {
       console.error('GitHub token exchange failed:', await tokenRes.text());
-      return NextResponse.redirect(new URL('/settings?github_error=exchange_failed', req.url));
+      return NextResponse.redirect(new URL('/integrations?github_error=exchange_failed', req.url));
     }
 
     const data = await tokenRes.json();
@@ -65,7 +65,7 @@ export async function GET(req: Request) {
     
     if (!accessToken) {
       console.error('GitHub token exchange returned no access token:', data);
-      return NextResponse.redirect(new URL('/settings?github_error=no_token', req.url));
+      return NextResponse.redirect(new URL('/integrations?github_error=no_token', req.url));
     }
 
     // Get user info
@@ -78,7 +78,7 @@ export async function GET(req: Request) {
 
     if (!userRes.ok) {
       console.error('GitHub user fetch failed:', await userRes.text());
-      return NextResponse.redirect(new URL('/settings?github_error=user_fetch_failed', req.url));
+      return NextResponse.redirect(new URL('/integrations?github_error=user_fetch_failed', req.url));
     }
 
     const userData = await userRes.json();
@@ -96,9 +96,9 @@ export async function GET(req: Request) {
       }
     }, { merge: true });
 
-    return NextResponse.redirect(new URL('/settings', req.url));
+    return NextResponse.redirect(new URL('/integrations', req.url));
   } catch (err) {
     console.error('GitHub callback error:', err);
-    return NextResponse.redirect(new URL('/settings?github_error=unknown', req.url));
+    return NextResponse.redirect(new URL('/integrations?github_error=unknown', req.url));
   }
 }

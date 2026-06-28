@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   const error = searchParams.get('error');
 
   if (error) {
-    return NextResponse.redirect(new URL('/settings?jira_error=access_denied', req.url));
+    return NextResponse.redirect(new URL('/integrations?jira_error=access_denied', req.url));
   }
 
   if (!code) {
@@ -58,7 +58,7 @@ export async function GET(req: Request) {
 
     if (!tokenRes.ok) {
       console.error('Jira token exchange failed:', await tokenRes.text());
-      return NextResponse.redirect(new URL('/settings?jira_error=exchange_failed', req.url));
+      return NextResponse.redirect(new URL('/integrations?jira_error=exchange_failed', req.url));
     }
 
     const data = await tokenRes.json();
@@ -69,7 +69,7 @@ export async function GET(req: Request) {
 
     if (!accessToken) {
       console.error('Jira token exchange returned no access token:', data);
-      return NextResponse.redirect(new URL('/settings?jira_error=no_token', req.url));
+      return NextResponse.redirect(new URL('/integrations?jira_error=no_token', req.url));
     }
 
     // Get accessible resources to find the cloudId (Site ID)
@@ -82,14 +82,14 @@ export async function GET(req: Request) {
 
     if (!resourcesRes.ok) {
       console.error('Jira resources fetch failed:', await resourcesRes.text());
-      return NextResponse.redirect(new URL('/settings?jira_error=resources_fetch_failed', req.url));
+      return NextResponse.redirect(new URL('/integrations?jira_error=resources_fetch_failed', req.url));
     }
 
     const resources = await resourcesRes.json();
     
     if (!resources || resources.length === 0) {
       console.error('No accessible Jira resources found.');
-      return NextResponse.redirect(new URL('/settings?jira_error=no_resources', req.url));
+      return NextResponse.redirect(new URL('/integrations?jira_error=no_resources', req.url));
     }
     
     // Default to the first jira resource
@@ -129,9 +129,9 @@ export async function GET(req: Request) {
       }
     }, { merge: true });
 
-    return NextResponse.redirect(new URL('/settings', req.url));
+    return NextResponse.redirect(new URL('/integrations', req.url));
   } catch (err) {
     console.error('Jira callback error:', err);
-    return NextResponse.redirect(new URL('/settings?jira_error=unknown', req.url));
+    return NextResponse.redirect(new URL('/integrations?jira_error=unknown', req.url));
   }
 }
