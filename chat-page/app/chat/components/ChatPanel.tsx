@@ -720,7 +720,7 @@ export default function ChatPanel({
 
         {/* Left: Sidebar Toggle */}
         <div style={{ pointerEvents: "auto" }}>
-          {!isSidebarOpen && (
+          {!isSidebarOpen && !isSharedView && (
             <button
               onClick={onToggleSidebar}
               title="Open sidebar"
@@ -999,58 +999,74 @@ export default function ChatPanel({
             pointerEvents: "none",
             zIndex: 11,
           }}>
-            <div style={{ width: "100%", maxWidth: "760px", margin: "0 auto", animation: "slideUp 0.3s ease-out", pointerEvents: "auto" }}>
+            <div style={{ width: "100%", maxWidth: "800px", margin: "0 auto", pointerEvents: "auto" }}>
 
-              {/* Conversation Mode banner */}
-              {conversationMode && !modifyMode && (
-                <div style={{
-                  display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", padding: "8px 12px",
-                  border: `1px solid rgba(139, 92, 246, 0.3)`, borderRadius: "8px",
-                  background: "rgba(139, 92, 246, 0.05)",
-                }}>
-                  <div style={{ width: "6px", height: "6px", borderRadius: "3px", background: "#8b5cf6", flexShrink: 0, boxShadow: "0 0 8px #8b5cf6" }} />
-                  <span style={{ fontSize: "12px", fontFamily: T.font, color: "#8b5cf6", fontWeight: 600 }}>Project Ready</span>
-                  <span style={{ fontSize: "12px", fontFamily: T.font, color: T.textHint, flex: 1 }}>Continue refining or ask questions about your project</span>
-                </div>
-              )}
-
-              {/* Modify mode banner */}
-              {modifyMode && modifyTargetArtifact && (
-                <div style={{
-                  display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", padding: "8px 12px",
-                  border: `1px solid ${T.borderHover}`, borderRadius: "8px",
-                  background: T.surfaceHover,
-                }}>
-                  <div style={{ width: "4px", height: "4px", borderRadius: "2px", background: T.text, flexShrink: 0 }} />
-                  <span style={{ fontSize: "12px", fontFamily: T.font, color: T.text, fontWeight: 500 }}>Targeting: {modifyTargetArtifact}</span>
-                  <span style={{ fontSize: "12px", fontFamily: T.font, color: T.textHint, flex: 1 }}>Only this artifact will regenerate</span>
-                  <button
-                    onClick={() => { setModifyMode(false); setModifyTargetArtifact(null); }}
-                    style={{ background: "none", border: "none", color: T.textHint, cursor: "pointer", fontSize: "12px", fontFamily: T.font, padding: "0 4px", transition: "color .15s" }}
-                    onMouseEnter={e => e.currentTarget.style.color = T.text}
-                    onMouseLeave={e => e.currentTarget.style.color = T.textHint}>
-                    ✕ Cancel
-                  </button>
-                </div>
-              )}
-
-              {messages.length === 0 && (
-                <div style={{ marginBottom: "12px", fontSize: "13px", fontWeight: 500, color: T.textMuted }}>Or start with your own product idea</div>
-              )}
               {isSharedView ? (
-                <div style={{ width: "100%", padding: "24px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: "16px", textAlign: "center", color: T.textMuted, fontSize: "14px", marginTop: "16px" }}>
-                  This is a shared EdgeOS conversation. Fork this project to continue working on it.
-                </div>
+                <>
+                  {/* ── Premium Read-Only Placeholder Box ── */}
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", padding: "16px",
+                    background: "rgba(255, 255, 255, 0.01)", border: "1px dashed rgba(255, 255, 255, 0.15)",
+                    borderRadius: "12px", width: "100%",
+                  }}>
+                    <span style={{ fontSize: "13px", color: "#a1a1aa", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                      </svg>
+                      This is a shared EdgeOS conversation. Fork this project to continue working on it.
+                    </span>
+                  </div>
+                </>
               ) : (
-                <InputArea
-                  input={input}
-                  textareaRef={textareaRef}
-                  tokenQuota={tokenQuota}
-                  handleInputChange={handleInputChange}
-                  handleKeyDown={handleKeyDown}
-                  handleSend={handleSend}
-                  isTyping={isTyping || isExporting}
-                />
+                <>
+                  {/* Conversation Mode banner */}
+                  {conversationMode && !modifyMode && (
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", padding: "8px 12px",
+                      border: `1px solid rgba(139, 92, 246, 0.3)`, borderRadius: "8px",
+                      background: "rgba(139, 92, 246, 0.05)",
+                    }}>
+                      <div style={{ width: "6px", height: "6px", borderRadius: "3px", background: "#8b5cf6", flexShrink: 0, boxShadow: "0 0 8px #8b5cf6" }} />
+                      <span style={{ fontSize: "12px", fontFamily: T.font, color: "#8b5cf6", fontWeight: 600 }}>Project Ready</span>
+                      <span style={{ fontSize: "12px", fontFamily: T.font, color: T.textHint, flex: 1 }}>Continue refining or ask questions about your project</span>
+                    </div>
+                  )}
+
+                  {/* Modify mode banner */}
+                  {modifyMode && modifyTargetArtifact && (
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", padding: "8px 12px",
+                      border: `1px solid ${T.borderHover}`, borderRadius: "8px",
+                      background: T.surfaceHover,
+                    }}>
+                      <div style={{ width: "4px", height: "4px", borderRadius: "2px", background: T.text, flexShrink: 0 }} />
+                      <span style={{ fontSize: "12px", fontFamily: T.font, color: T.text, fontWeight: 500 }}>Targeting: {modifyTargetArtifact}</span>
+                      <span style={{ fontSize: "12px", fontFamily: T.font, color: T.textHint, flex: 1 }}>Only this artifact will regenerate</span>
+                      <button
+                        onClick={() => { setModifyMode(false); setModifyTargetArtifact(null); }}
+                        style={{ background: "none", border: "none", color: T.textHint, cursor: "pointer", fontSize: "12px", fontFamily: T.font, padding: "0 4px", transition: "color .15s" }}
+                        onMouseEnter={e => e.currentTarget.style.color = T.text}
+                        onMouseLeave={e => e.currentTarget.style.color = T.textHint}>
+                        ✕ Cancel
+                      </button>
+                    </div>
+                  )}
+
+                  {messages.length === 0 && (
+                    <div style={{ marginBottom: "12px", fontSize: "13px", fontWeight: 500, color: T.textMuted }}>Or start with your own product idea</div>
+                  )}
+                  
+                  <InputArea
+                    input={input}
+                    textareaRef={textareaRef}
+                    tokenQuota={tokenQuota}
+                    handleInputChange={handleInputChange}
+                    handleKeyDown={handleKeyDown}
+                    handleSend={handleSend}
+                    isTyping={isTyping || isExporting}
+                  />
+                </>
               )}
             </div>
           </div>

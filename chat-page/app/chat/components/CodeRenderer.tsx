@@ -55,7 +55,7 @@ export default function CodeRenderer({
         {index + 1}
       </div>
       {/* Code Content */}
-      <div style={{ flex: 1, whiteSpace: "pre-wrap", wordBreak: "break-word", paddingRight: "16px" }}>
+      <div style={{ flex: 1, whiteSpace: "pre-wrap", overflowWrap: "anywhere", paddingRight: "16px" }}>
         {children}
       </div>
     </div>

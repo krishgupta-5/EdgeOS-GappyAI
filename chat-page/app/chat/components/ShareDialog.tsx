@@ -12,13 +12,14 @@ const T = {
   font: "var(--font-satoshi), system-ui, -apple-system, sans-serif",
 };
 
-export default function ShareDialog({ sessionId, shareUrl, shareId, loading, onClose, onDelete }: {
+export default function ShareDialog({ sessionId, shareUrl, shareId, loading, onClose, onDelete, onCopy }: {
   sessionId: string;
   shareUrl?: string;
   shareId?: string;
   loading?: boolean;
   onClose: () => void;
   onDelete: (shareId: string, sessionId: string) => void;
+  onCopy?: () => void;
 }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 4000, fontFamily: T.font }} onClick={onClose}>
@@ -44,7 +45,7 @@ export default function ShareDialog({ sessionId, shareUrl, shareId, loading, onC
             
             <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
               <button 
-                onClick={() => { if(shareUrl) { navigator.clipboard.writeText(shareUrl); alert("Copied!"); } }}
+                onClick={() => { if(shareUrl) { navigator.clipboard.writeText(shareUrl); if(onCopy) onCopy(); } }}
                 style={{ flex: 1, background: T.surfaceHover, color: T.text, border: `1px solid ${T.border}`, padding: "8px", borderRadius: "6px", cursor: "pointer", fontSize: "13px" }}
               >
                 Copy Link
@@ -60,10 +61,10 @@ export default function ShareDialog({ sessionId, shareUrl, shareId, loading, onC
             <div style={{ display: "flex", gap: "8px" }}>
               {/* Note: Update Share is effectively the same as creating a new share which happens via handleShareClick, but the user requested it. For now, it's just the shareUrl copying unless they click the context menu again */}
               <button 
-                onClick={() => { if(shareId) onDelete(shareId, sessionId); }}
-                style={{ flex: 1, background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "none", padding: "8px", borderRadius: "6px", cursor: "pointer", fontSize: "13px" }}
+                onClick={onClose}
+                style={{ flex: 1, background: T.surfaceHover, color: T.text, border: `1px solid ${T.border}`, padding: "8px", borderRadius: "6px", cursor: "pointer", fontSize: "13px" }}
               >
-                Delete Share
+                Cancel
               </button>
             </div>
           </>

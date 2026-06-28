@@ -147,8 +147,10 @@ function SearchModal({ userSessions, onClose, onNavigate, leftOffset }: {
 function Toast({ message, onDone }: { message: string; onDone: () => void; }) {
   useEffect(() => { const t = setTimeout(onDone, 3000); return () => clearTimeout(t); }, [onDone]);
   return (
-    <div style={{ position: "fixed", bottom: "24px", left: "50%", transform: "translateX(-50%)", background: T.text, color: T.bg, padding: "12px 24px", borderRadius: "8px", fontSize: "14px", fontWeight: 500, fontFamily: T.font, boxShadow: "0 12px 24px rgba(0,0,0,0.5)", zIndex: 4000, animation: "slideUp 0.3s ease-out" }}>
-      {message}
+    <div style={{ position: "fixed", top: "24px", left: 0, right: 0, display: "flex", justifyContent: "center", zIndex: 9999, pointerEvents: "none" }}>
+      <div style={{ background: T.text, color: T.bg, padding: "12px 24px", borderRadius: "8px", fontSize: "14px", fontWeight: 500, fontFamily: T.font, boxShadow: "0 12px 24px rgba(0,0,0,0.5)", animation: "slideUp 0.3s ease-out" }}>
+        {message}
+      </div>
     </div>
   );
 }
@@ -224,11 +226,11 @@ function SidebarLink({ icon, label, onClick, isOpen, isHighlight, className }: {
       <AnimatePresence>
         {isOpen && (
           <motion.span 
-            initial={{ opacity: 0, width: 0, marginLeft: 0 }}
-            animate={{ opacity: 1, width: "auto", marginLeft: 4 }}
-            exit={{ opacity: 0, width: 0, marginLeft: 0 }}
+            initial={{ opacity: 0, x: -5 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -5 }}
             transition={{ duration: 0.2 }}
-            style={{ fontSize: "14px", fontWeight: isHighlight ? 500 : 400, whiteSpace: "nowrap" }}
+            style={{ fontSize: "14px", fontWeight: isHighlight ? 500 : 400, whiteSpace: "nowrap", marginLeft: "4px" }}
           >
             {label}
           </motion.span>
@@ -263,11 +265,11 @@ function HistoryItem({ sessionId, title, isOpen, active = false, isPinned = fals
         <AnimatePresence>
           {isOpen && (
             <motion.div 
-              initial={{ opacity: 0, width: 0, marginLeft: 0 }}
-              animate={{ opacity: 1, width: "auto", marginLeft: 4 }}
-              exit={{ opacity: 0, width: 0, marginLeft: 0 }}
-              transition={{ duration: 0.2, ease: "easeInOut" }}
-              style={{ lineHeight: "1.4", fontWeight: 500, whiteSpace: "normal", wordBreak: "break-word" }}
+              initial={{ opacity: 0, x: -5 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -5 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              style={{ lineHeight: "1.4", fontWeight: 500, whiteSpace: "normal", overflowWrap: "anywhere", marginLeft: "4px" }}
             >
               {title}
             </motion.div>
@@ -322,6 +324,16 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
   const [cachedDisplayName, setCachedDisplayName] = useState<string>("User");
   const [cachedEmail, setCachedEmail] = useState<string | null>(null);
   const [pinnedSessions, setPinnedSessions] = useState<string[]>([]);
+  const [isFullyOpen, setIsFullyOpen] = useState(isOpen);
+
+  useEffect(() => {
+    if (isOpen) {
+      const t = setTimeout(() => setIsFullyOpen(true), 200);
+      return () => clearTimeout(t);
+    } else {
+      setIsFullyOpen(false);
+    }
+  }, [isOpen]);
 
   const useIsomorphicLayoutEffect = typeof window !== "undefined" ? React.useLayoutEffect : useEffect;
 
@@ -376,6 +388,14 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
   const [isRecentCollapsed, setIsRecentCollapsed] = useState(false);
   const [shareDialog, setShareDialog] = useState<{ sessionId: string; shareUrl?: string; shareId?: string; loading?: boolean } | null>(null);
   const expanded = isOpen || profileMenuOpen || (contextMenu !== null);
+  const [isFullyExpanded, setIsFullyExpanded] = useState(expanded);
+
+  useEffect(() => {
+    if (!expanded) {
+      setIsFullyExpanded(false);
+    }
+  }, [expanded]);
+
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -495,7 +515,7 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
       {renameModal && <RenameModal currentTitle={renameModal.currentTitle} onSave={v => handleRenameSave(renameModal.sessionId, v)} onCancel={() => setRenameModal(null)} />}
       {isSearchModalOpen && <SearchModal userSessions={userSessions} onClose={() => setIsSearchModalOpen(false)} onNavigate={id => router.push(`/chat/${id}`)} leftOffset={isOpen ? sidebarWidth : 68} />}
       {toast && <Toast message={toast} onDone={() => setToast(null)} />}
-      {shareDialog && <ShareDialog {...shareDialog} onClose={() => setShareDialog(null)} onDelete={handleDeleteShare} />}
+      {shareDialog && <ShareDialog {...shareDialog} onClose={() => setShareDialog(null)} onDelete={handleDeleteShare} onCopy={() => setToast("Share link copied successfully.")} />}
 
       <SessionContextMenu 
             visible={contextMenu !== null} 
@@ -516,6 +536,7 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
         initial={{ width: expanded ? sidebarWidth : 68 }}
         animate={{ width: expanded ? sidebarWidth : 68 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        onAnimationComplete={() => { if (expanded) setIsFullyExpanded(true); }}
         style={{
           background: T.bg,
           borderRight: `1px solid rgba(255,255,255,0.06)`,
@@ -544,19 +565,19 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
         {/* 2. Primary Navigation */}
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "0 14px", width: "100%" }}>
           <SidebarLink 
-            isOpen={expanded}
+            isOpen={isFullyExpanded}
             onClick={handleNewChat}
             icon={<PlusSignIcon size={18} strokeWidth={2.5} />}
             label="New Project"
           />
           <SidebarLink 
-            isOpen={expanded}
+            isOpen={isFullyExpanded}
             onClick={() => setIsSearchModalOpen(true)}
             icon={<Search02Icon size={18} strokeWidth={2.5} />}
             label="Search projects..."
           />
           <SidebarLink 
-            isOpen={expanded}
+            isOpen={isFullyExpanded}
             onClick={() => router.push('/integrations')}
             icon={<PlugSocketIcon size={18} strokeWidth={2.5} />}
             label="Integrations"
@@ -577,7 +598,7 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
             <>
               {pinnedSessionsList.length > 0 && (
                 <div style={{ marginBottom: "16px" }}>
-                  {expanded && (
+                  {isFullyExpanded && (
                     <div 
                       onClick={() => setIsPinnedCollapsed(!isPinnedCollapsed)}
                       style={{ fontSize: "11px", fontWeight: 600, color: T.textHint, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px", paddingLeft: "4px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none" }}
@@ -596,7 +617,7 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
                             key={s.sessionId} 
                             sessionId={s.sessionId}
                             title={s.lastMessage || `Session · ${s.messageCount} messages`}
-                            isOpen={expanded}
+                            isOpen={isFullyExpanded}
                             active={activeAgentId === s.sessionId}
                             isPinned={true}
                             isShared={s.isShared}
@@ -613,7 +634,7 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
 
               {recentSessionsList.length > 0 && (
                 <div style={{ marginBottom: "16px" }}>
-                  {expanded && (
+                  {isFullyExpanded && (
                     <div 
                       onClick={() => setIsRecentCollapsed(!isRecentCollapsed)}
                       style={{ fontSize: "11px", fontWeight: 600, color: T.textHint, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px", paddingLeft: "4px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none" }}
@@ -632,7 +653,7 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
                             key={s.sessionId} 
                             sessionId={s.sessionId}
                             title={s.lastMessage || `Session · ${s.messageCount} messages`}
-                            isOpen={expanded}
+                            isOpen={isFullyExpanded}
                             active={activeAgentId === s.sessionId}
                             isPinned={false}
                             isShared={s.isShared}
@@ -674,7 +695,7 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
             )}
 
             <AnimatePresence>
-              {expanded && (
+              {isFullyExpanded && (
                 <motion.div 
                   initial={{ opacity: 0, width: 0, marginLeft: 0 }}
                   animate={{ opacity: 1, width: "auto", marginLeft: 12 }}
