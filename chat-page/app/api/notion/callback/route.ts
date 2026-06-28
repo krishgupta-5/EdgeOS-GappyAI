@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   const error = searchParams.get('error');
 
   if (error) {
-    return NextResponse.redirect(new URL('/settings?notion_error=access_denied', req.url));
+    return NextResponse.redirect(new URL('/integrations?notion_error=access_denied', req.url));
   }
 
   if (!code) {
@@ -60,7 +60,7 @@ export async function GET(req: Request) {
     if (!tokenRes.ok) {
       const err = await tokenRes.text();
       console.error('Notion OAuth token exchange failed:', err);
-      return NextResponse.redirect(new URL('/settings?notion_error=exchange_failed', req.url));
+      return NextResponse.redirect(new URL('/integrations?notion_error=exchange_failed', req.url));
     }
 
     const data = await tokenRes.json();
@@ -80,9 +80,9 @@ export async function GET(req: Request) {
       }
     }, { merge: true });
 
-    return NextResponse.redirect(new URL('/settings', req.url));
+    return NextResponse.redirect(new URL('/integrations', req.url));
   } catch (err) {
     console.error('Notion callback error:', err);
-    return NextResponse.redirect(new URL('/settings?notion_error=unknown', req.url));
+    return NextResponse.redirect(new URL('/integrations?notion_error=unknown', req.url));
   }
 }
