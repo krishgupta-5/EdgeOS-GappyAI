@@ -52,10 +52,12 @@ export default function FileContentRenderer({
 
   if (language === "dbschema") {
     return (
-      <DbSchemaViewer
-        mermaid={msg.file.dbSchema?.mermaid ?? ""}
-        diagram={msg.file.dbSchema?.diagram ?? content}
-      />
+      <div style={{ padding: "20px" }}>
+        <DbSchemaViewer
+          mermaid={msg.file.dbSchema?.mermaid ?? ""}
+          diagram={msg.file.dbSchema?.diagram ?? content}
+        />
+      </div>
     );
   }
 

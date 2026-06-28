@@ -70,24 +70,33 @@ export async function exportToGithub(
 
   const octokit = getGithubClient(accessToken);
   const baseRepoName = toKebabCase(title || 'new-project');
-  const timestamp = Math.floor(Date.now() / 1000).toString(36);
-  const repoName = `${baseRepoName}-${timestamp}`;
+  let repoName = baseRepoName;
   let repoData = null;
 
   // 1. Create Repository
   onProgress?.('Creating repository...');
-  try {
-    const { data } = await octokit.repos.createForAuthenticatedUser({
-      name: repoName,
-      private: isPrivate,
-      auto_init: true,
-    });
-    repoData = data;
-    console.log(`[GITHUB] Repository Created: ${repoName}`);
-  } catch (err: any) {
-    console.error(`[GITHUB] Repository creation failed.`, err.response?.data || err.message || err);
-    logSummary.GitHub = 'FAILED';
-    return null;
+  
+  let attempt = 0;
+  while (!repoData && attempt < 10) {
+    try {
+      const { data } = await octokit.repos.createForAuthenticatedUser({
+        name: repoName,
+        private: isPrivate,
+        auto_init: true,
+      });
+      repoData = data;
+      console.log(`[GITHUB] Repository Created: ${repoName}`);
+    } catch (err: any) {
+      // 422 often indicates "name already exists on this account"
+      if (err.status === 422) {
+        attempt++;
+        repoName = `${baseRepoName}-${attempt}`;
+      } else {
+        console.error(`[GITHUB] Repository creation failed.`, err.response?.data || err.message || err);
+        logSummary.GitHub = 'FAILED';
+        return null;
+      }
+    }
   }
 
   if (!repoData) {

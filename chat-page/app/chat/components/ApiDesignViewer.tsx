@@ -207,12 +207,13 @@ export default function ApiDesignViewer({ content }: ApiDesignViewerProps) {
     groups = [];
   }
 
-  // Fallback if parsing completely fails
+  // Fallback if parsing completely fails or no groups were found
   if (groups.length === 0 && !overview) {
+    // We still want to render whatever they generated as markdown, so tables and mermaid diagrams work!
     return (
-      <pre style={{ color: T.textMuted, fontSize: "13px", fontFamily: T.mono, margin: 0 }}>
-        {content}
-      </pre>
+      <div style={{ padding: "0" }}>
+        <MarkdownRenderer content={content} />
+      </div>
     );
   }
 

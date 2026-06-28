@@ -275,21 +275,33 @@ function HistoryItem({ sessionId, title, isOpen, active = false, isPinned = fals
       </button>
 
       {isOpen && (
-        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-          {(isPinned || isHovered) && (
-            <button 
-              onClick={e => { e.stopPropagation(); onTogglePin?.(e, sessionId); }}
-              style={{ flexShrink: 0, background: "transparent", border: "none", color: isPinned ? T.text : T.textMuted, cursor: "pointer", padding: "4px", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center" }}
-              onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-              title={isPinned ? "Unpin" : "Pin"}
-            >
-              <PinIcon size={14} fill={isPinned ? "currentColor" : "none"} />
-            </button>
-          )}
+        <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
+          <button 
+            onClick={e => { e.stopPropagation(); onTogglePin?.(e, sessionId); }}
+            style={{ 
+              flexShrink: 0, background: "transparent", border: "none", 
+              color: isPinned ? T.text : T.textMuted, cursor: "pointer", 
+              padding: "4px", borderRadius: "4px", display: "flex", 
+              alignItems: "center", justifyContent: "center",
+              opacity: (isPinned || isHovered) ? 1 : 0,
+              pointerEvents: (isPinned || isHovered) ? "auto" : "none",
+              transition: "opacity 0.15s, background 0.15s"
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
+            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            title={isPinned ? "Unpin" : "Pin"}
+          >
+            <PinIcon size={14} fill={isPinned ? "currentColor" : "none"} />
+          </button>
+          
           <button 
             onClick={e => { e.stopPropagation(); onOptionsClick?.(e, sessionId, title); }}
-            style={{ flexShrink: 0, background: "transparent", border: "none", color: T.textMuted, cursor: "pointer", padding: "4px", borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "center" }}
+            style={{ 
+              flexShrink: 0, background: "transparent", border: "none", 
+              color: T.textMuted, cursor: "pointer", padding: "4px", 
+              borderRadius: "4px", display: "flex", alignItems: "center", 
+              justifyContent: "center", transition: "background 0.15s"
+            }}
             onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.1)"}
             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
           >

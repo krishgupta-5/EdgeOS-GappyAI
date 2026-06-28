@@ -16,7 +16,6 @@ import MarkdownRenderer from "@/app/chat/components/MarkdownRenderer";
 import FileContentRenderer from "@/app/chat/components/FileContentRenderer";
 import FileHeader from "@/app/chat/components/FileHeader";
 import InputArea from "@/app/chat/components/InputArea";
-import LiveActivityTimeline from "@/app/chat/components/LiveActivityTimeline";
 import FinalSummaryCard from "@/app/chat/components/FinalSummaryCard";
 import type { ProgressEvent } from "@/lib/pipeline/types";
 
@@ -268,6 +267,11 @@ export default function ChatPanel({
   const scrollableRef = useRef<HTMLDivElement>(null);
   const [liveEvents, setLiveEvents] = useState<ProgressEvent[]>([]);
   const [showScrollDown, setShowScrollDown] = useState(false);
+  const [integrationData, setIntegrationData] = useState<{
+    github: boolean;
+    notion: boolean;
+    jira: boolean;
+  }>({ github: false, notion: false, jira: false });
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   
@@ -286,6 +290,17 @@ export default function ChatPanel({
   useEffect(() => {
     if (!isSignedIn) return;
     fetch("/api/token-quota").then(r => r.ok ? r.json() : null).then(d => d && setTokenQuota(d));
+
+    Promise.all([
+      fetch("/api/integrations").then(res => res.json()).catch(() => ({})),
+      fetch("/api/notion/pages").then(res => res.json()).catch(() => ({}))
+    ]).then(([integrations, notion]) => {
+      setIntegrationData({
+        github: !!integrations?.github?.accessToken,
+        jira: !!integrations?.jira?.accessToken,
+        notion: !!notion?.connected
+      });
+    });
   }, [isSignedIn]);
 
   useEffect(() => {
@@ -664,8 +679,10 @@ export default function ChatPanel({
           )}
         </div>
 
-        {/* Right: Floating Structured CTA */}
-        <div style={{ pointerEvents: "auto" }}>
+        {/* Right: Floating Structured CTA & Integration Badges */}
+        <div style={{ pointerEvents: "auto", display: "flex", alignItems: "center", gap: "12px" }}>
+
+
           {!isSignedIn && isLoaded && (
             <Link href="/signup" style={{ textDecoration: "none" }}>
               <button style={{
@@ -883,18 +900,14 @@ export default function ChatPanel({
                 </div>
               )}
 
-              {/* Live Timeline during generation/export */}
-              {(isTyping || isExporting) && liveEvents.length > 0 && (
-                <LiveActivityTimeline events={liveEvents} />
-              )}
-
-              {/* Final Summary Card after export finishes */}
-              {!isTyping && !isExporting && liveEvents.some(e => e.source !== 'pipeline') && (
+              {/* Integration Prompt Card (formerly Final Summary) after generation finishes */}
+              {!isTyping && !isExporting && messages.length > 0 && messages[messages.length - 1].role === "assistant" && generatedData?.finalMarkdown && (
                 <FinalSummaryCard 
                   events={liveEvents}
                   githubUrl={messages[messages.length - 1]?.githubUrl}
                   notionUrl={messages[messages.length - 1]?.notionUrl}
                   jiraUrl={messages[messages.length - 1]?.jiraUrl}
+                  sessionId={sessionId}
                 />
               )}
 

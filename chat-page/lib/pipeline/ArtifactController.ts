@@ -206,7 +206,7 @@ export async function generateArtifact(
   if (mode === 'generate' && artifactType !== 'config') {
     const generatedSet = new Set(Object.keys(state.artifacts) as ArtifactType[]);
     const missingDeps = getMissingDependencies(artifactType, generatedSet);
-    
+
     if (missingDeps.length > 0) {
       log.info(`Detected missing dependencies for ${artifactType}, explicitly generating them`, { missingDeps });
       for (const dep of missingDeps) {
@@ -276,7 +276,7 @@ export async function generateArtifact(
     for (let retry = 0; retry < MAX_VALIDATION_RETRIES; retry++) {
       const retryInstructions = buildValidationRetryInstructions(validation.errors);
       const artifactPrompt = getArtifactPrompt(artifactType);
-      
+
       const retryContent = [
         `[INSTRUCTIONS]\n${artifactPrompt}`,
         `[PREVIOUS OUTPUT]\n${groqResult.content}`,
@@ -341,14 +341,14 @@ export async function generateArtifact(
       // Matches any JSON array containing objects
       jsonMatch = groqResult.content.match(/(\[\s*\{[\s\S]*?\}\s*\])/);
     }
-    
+
     if (jsonMatch) {
       try {
         structuredData = JSON.parse(jsonMatch[1]);
         const originalContent = groqResult.content;
         groqResult.content = groqResult.content.replace(/```(?:json)?\s*\[\s*\{[\s\S]*?\}\s*\]\s*```/, '').trim();
-        if (groqResult.content === originalContent) { 
-           groqResult.content = groqResult.content.replace(/\[\s*\{[\s\S]*?\}\s*\]/, '').trim();
+        if (groqResult.content === originalContent) {
+          groqResult.content = groqResult.content.replace(/\[\s*\{[\s\S]*?\}\s*\]/, '').trim();
         }
       } catch (err) {
         log.warn('Failed to parse folderStructure JSON', { err });
@@ -544,17 +544,13 @@ export async function modifyArtifact(
 
 /**
  * Generate DB schema via external webhook (n8n/Activepieces).
+ * Falls back to Groq LLM if webhook URL is not configured.
  */
 export async function generateDbSchema(
   state: ProjectState,
   userPrompt: string,
 ): Promise<DbSchema | null> {
   const webhookUrl = process.env.ACTIVEPIECES_WEBHOOK_URL;
-  if (!webhookUrl) {
-    log.warn('ACTIVEPIECES_WEBHOOK_URL not set');
-    return null;
-  }
-
   const markdownSummary = state.summaries.markdown || state.projectDescription;
   const startTime = Date.now();
 
@@ -565,50 +561,122 @@ export async function generateDbSchema(
   }).catch(err => log.error('Failed to emit GENERATION_STARTED for db', { err: String(err) }));
 
   try {
-    const res = await Promise.race([
-      fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: userPrompt, stackSummary: markdownSummary }),
-      }),
-      new Promise<Response>((_, rej) =>
-        setTimeout(() => rej(new Error('Webhook timeout')), ACTIVEPIECES_TIMEOUT_MS),
-      ),
-    ]);
+    let mermaid = '';
+    let diagram = '';
+    let webhookSuccess = false;
 
-    if (!res.ok) {
-      log.error('Activepieces error', { status: res.status });
-      return null;
+    if (webhookUrl) {
+      // ── Activepieces webhook path ──
+      try {
+        const res = await Promise.race([
+          fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: userPrompt, stackSummary: markdownSummary }),
+          }),
+          new Promise<Response>((_, rej) =>
+            setTimeout(() => rej(new Error('Webhook timeout')), ACTIVEPIECES_TIMEOUT_MS),
+          ),
+        ]);
+
+        if (!res.ok) {
+          log.warn('Activepieces error, falling back to Groq', { status: res.status });
+        } else {
+          const text = await res.text();
+          const clean = text.trimStart().startsWith('=')
+            ? text.trimStart().slice(1)
+            : text;
+
+          const data = JSON.parse(clean);
+          const p = Array.isArray(data) ? data[0] : data;
+          mermaid = p?.mermaid ?? p?.schema ?? p?.erd ?? p?.text ?? '';
+          diagram = p?.diagram ?? p?.svg ?? p?.image ?? p?.url ?? p?.output ?? '';
+          
+          if (mermaid || diagram) {
+            webhookSuccess = true;
+          }
+        }
+      } catch (err) {
+        log.warn('Activepieces failed or returned invalid JSON, falling back to Groq', { err: String(err) });
+      }
     }
 
-    const text = await res.text();
-    const clean = text.trimStart().startsWith('=')
-      ? text.trimStart().slice(1)
-      : text;
+    if (!webhookSuccess) {
+      // ── Groq LLM fallback path ──
+      log.info('Using Groq fallback for DB schema generation');
+      const apiKey = process.env.GROQ_API_KEY || '';
+      const messages = [
+        {
+          role: 'system' as const,
+          content: `You are an expert database architect. Generate a Mermaid ER diagram (erDiagram) for the project described below.
+Your response MUST be valid JSON containing ONLY: {"mermaid": "erDiagram\\n..."}
 
-    let data: any;
-    try {
-      data = JSON.parse(clean);
-    } catch {
-      log.error('Activepieces response not JSON', {
-        responsePreview: clean.slice(0, 500),
-        contentLength: text.length,
-      });
-      return null;
+CRITICAL RULES:
+1. Start with "erDiagram".
+2. Use ONLY valid ER cardinalities: ||, |o, }o, }|, o|, o{.
+3. Do NOT use class diagram syntax like |> or <|.
+4. EVERY relationship MUST have a label in quotes: User ||--o{ Post : "creates"
+5. NO SPACES inside cardinality arrows: ||--o{ (correct), ||--o { (wrong).
+6. Relationships MUST be on a single line.
+7. Entity attributes use curly braces on separate lines:
+   User {
+     string id PK
+     string name
+   }
+8. Use PK for primary keys, FK for foreign keys.
+9. Keep entity and attribute names as single words (no spaces).`
+        },
+        {
+          role: 'user' as const,
+          content: `Project: ${userPrompt}\n\nStack: ${markdownSummary}\n\nGenerate the DB Schema as JSON.`
+        }
+      ];
+
+      const callConfig = createCallConfig(apiKey, 2000, 0.2);
+      const groqResult = await callGroqRaw(callConfig, messages, 'db');
+
+      if (!groqResult) {
+        log.error('Groq call failed for db schema');
+        return null;
+      }
+
+      let clean = groqResult.content.trim();
+
+      // If the LLM output raw mermaid instead of JSON, extract it directly
+      if (clean.includes('erDiagram') && !clean.trimStart().startsWith('{')) {
+        const mermaidMatch = clean.match(/(?:```(?:mermaid)?\s*)?(erDiagram[\s\S]*?)(?:```\s*$|$)/);
+        if (mermaidMatch) {
+          mermaid = mermaidMatch[1].trim();
+        }
+      }
+
+      if (!mermaid) {
+        // Try JSON parsing
+        const jsonMatch = clean.match(/\{[\s\S]*\}/);
+        if (jsonMatch) clean = jsonMatch[0];
+
+        try {
+          const data = JSON.parse(clean);
+          const p = Array.isArray(data) ? data[0] : data;
+          mermaid = p?.mermaid ?? p?.schema ?? p?.erd ?? p?.text ?? '';
+          diagram = p?.diagram ?? p?.svg ?? p?.image ?? p?.url ?? p?.output ?? '';
+        } catch {
+          log.error('Groq response not JSON for db schema', {
+            responsePreview: clean.slice(0, 500),
+          });
+          return null;
+        }
+      }
     }
-
-    const p = Array.isArray(data) ? data[0] : data;
-    let mermaid = p?.mermaid ?? p?.schema ?? p?.erd ?? p?.text ?? '';
-    const diagram = p?.diagram ?? p?.svg ?? p?.image ?? p?.url ?? p?.output ?? '';
 
     mermaid = stripFences(mermaid);
-    
+
     if (mermaid && !mermaid.includes('erDiagram') && !mermaid.includes('classDiagram')) {
       log.warn('Mermaid diagram missing erDiagram declaration, attempting sanitization', { preview: mermaid.slice(0, 100) });
       mermaid = `erDiagram\n${mermaid}`;
     }
     if (!mermaid && !diagram) {
-      log.warn('Activepieces empty payload');
+      log.warn('Empty payload for DB schema');
       return null;
     }
 
@@ -635,7 +703,7 @@ export async function generateDbSchema(
 
     return dbSchema;
   } catch (err) {
-    log.error('Activepieces call failed', { err: String(err) });
+    log.error('DB schema generation failed', { err: String(err) });
     return null;
   }
 }

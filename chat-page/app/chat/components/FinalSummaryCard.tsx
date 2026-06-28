@@ -1,13 +1,16 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { ProgressEvent } from "@/lib/pipeline/types";
 
 const T = {
   bg: "#09090b",
   surface: "#121214",
+  surfaceHover: "#18181b",
   border: "#27272a",
   borderHover: "#3f3f46",
   text: "#ededed",
   textMuted: "#a1a1aa",
+  textHint: "#71717a",
   accent: "#ffffff",
   font: "var(--font-satoshi), system-ui, -apple-system, sans-serif",
   success: "#10b981",
@@ -19,138 +22,142 @@ interface Props {
   githubUrl?: string;
   notionUrl?: string;
   jiraUrl?: string;
+  sessionId?: string;
 }
 
-export default function FinalSummaryCard({ events, githubUrl, notionUrl, jiraUrl }: Props) {
-  const generatedArtifacts = events
-    .filter(e => e.type === 'ARTIFACT_GENERATED')
-    .map(e => e.message.replace(' generated', ''));
-    
-  const pipelineEvents = events.filter(e => e.source === 'pipeline' && e.type === 'ARTIFACT_GENERATED');
-  const totalPipelineDuration = pipelineEvents.reduce((acc, curr) => acc + (curr.durationMs || 0), 0);
+export default function FinalSummaryCard({ events, githubUrl, notionUrl, jiraUrl, sessionId }: Props) {
+  const router = useRouter();
+  
+  const [integrationData, setIntegrationData] = useState<{
+    github: boolean;
+    notion: boolean;
+    jira: boolean;
+  }>({ github: false, notion: false, jira: false });
 
-  const getExportDuration = (source: string) => {
-    const completed = events.find(e => e.source === source && (e.type === 'EXPORT_COMPLETED' || e.type === 'EXPORT_FAILED'));
-    return completed?.durationMs || 0;
+  const [loading, setLoading] = useState<{ github: boolean; notion: boolean; jira: boolean }>({
+    github: false, notion: false, jira: false
+  });
+
+  const [urls, setUrls] = useState<{ github?: string; notion?: string; jira?: string }>({
+    github: githubUrl,
+    notion: notionUrl,
+    jira: jiraUrl
+  });
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/integrations").then(res => res.json()).catch(() => ({})),
+      fetch("/api/notion/pages").then(res => res.json()).catch(() => ({}))
+    ]).then(([integrations, notion]) => {
+      setIntegrationData({
+        github: !!integrations?.github?.accessToken,
+        jira: !!integrations?.jira?.accessToken,
+        notion: !!notion?.connected
+      });
+    });
+  }, []);
+
+  const handleAction = async (platform: 'github' | 'jira' | 'notion') => {
+    if (!integrationData[platform]) {
+      router.push('/integrations');
+      return;
+    }
+
+    if (!sessionId) return;
+
+    setLoading(prev => ({ ...prev, [platform]: true }));
+    try {
+      const res = await fetch('/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform, sessionId })
+      });
+      const data = await res.json();
+      if (data.success && data.exportData) {
+        setUrls(prev => ({
+          ...prev,
+          github: platform === 'github' ? data.exportData.githubUrl : prev.github,
+          jira: platform === 'jira' ? data.exportData.jiraUrl : prev.jira,
+          notion: platform === 'notion' ? data.exportData.notionUrl : prev.notion,
+        }));
+      } else {
+        console.error(data.error);
+        alert(`Failed to export to ${platform}: ${data.error}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert(`An error occurred while exporting to ${platform}`);
+    } finally {
+      setLoading(prev => ({ ...prev, [platform]: false }));
+    }
   };
 
-  const githubDuration = getExportDuration('github');
-  const notionDuration = getExportDuration('notion');
-  const jiraDuration = getExportDuration('jira');
-  
-  const totalDuration = totalPipelineDuration + githubDuration + notionDuration + jiraDuration;
-
-  const exportStatuses = {
-    github: events.find(e => e.source === 'github' && e.type === 'EXPORT_COMPLETED') ? 'Success' : 
-            events.find(e => e.source === 'github' && e.type === 'EXPORT_FAILED') ? 'Failed' : 'Skipped',
-    notion: events.find(e => e.source === 'notion' && e.type === 'EXPORT_COMPLETED') ? 'Success' : 
-            events.find(e => e.source === 'notion' && e.type === 'EXPORT_FAILED') ? 'Failed' : 'Skipped',
-    jira: events.find(e => e.source === 'jira' && e.type === 'EXPORT_COMPLETED') ? 'Success' : 
-          events.find(e => e.source === 'jira' && e.type === 'EXPORT_FAILED') ? 'Failed' : 'Skipped',
+  const renderOptionButton = (platform: 'github' | 'jira' | 'notion', label: string, isIntegrated: boolean, url?: string) => {
+    if (url) {
+      return (
+        <a href={url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+          <button style={{
+            padding: "6px 12px", background: "transparent", border: `1px solid ${T.border}`, color: T.textHint,
+            fontSize: "12px", fontFamily: T.font, cursor: "pointer", transition: "all .15s", borderRadius: "6px"
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = T.text; e.currentTarget.style.borderColor = T.textHint; }}
+          onMouseLeave={e => { e.currentTarget.style.color = T.textHint; e.currentTarget.style.borderColor = T.border; }}>
+            View in {label} ↗
+          </button>
+        </a>
+      );
+    }
+    
+    return (
+      <button
+        onClick={() => handleAction(platform)}
+        disabled={loading[platform]}
+        style={{
+          padding: "6px 12px",
+          background: isIntegrated ? T.text : T.surfaceHover,
+          color: isIntegrated ? T.bg : T.textMuted,
+          border: isIntegrated ? `1px solid ${T.text}` : `1px solid ${T.borderHover}`,
+          fontSize: "12px", fontFamily: T.font,
+          cursor: loading[platform] ? "not-allowed" : "pointer",
+          transition: "all .15s", borderRadius: "6px",
+          opacity: loading[platform] ? 0.5 : 1
+        }}
+        onMouseEnter={e => {
+          if (!loading[platform] && !isIntegrated) {
+            e.currentTarget.style.background = T.text;
+            e.currentTarget.style.color = T.bg;
+            e.currentTarget.style.borderColor = T.text;
+          } else if (!loading[platform] && isIntegrated) {
+            e.currentTarget.style.opacity = "0.85";
+          }
+        }}
+        onMouseLeave={e => {
+          if (!loading[platform] && !isIntegrated) {
+            e.currentTarget.style.background = T.surfaceHover;
+            e.currentTarget.style.color = T.textMuted;
+            e.currentTarget.style.borderColor = T.borderHover;
+          } else if (!loading[platform] && isIntegrated) {
+            e.currentTarget.style.opacity = "1";
+          }
+        }}
+      >
+        {loading[platform] ? "..." : isIntegrated ? `Export to ${label}` : `Setup ${label}`}
+      </button>
+    );
   };
 
   return (
     <div style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: "24px",
-      padding: "24px",
-      background: T.surface,
-      border: `1px solid ${T.border}`,
-      borderRadius: "12px",
-      fontFamily: T.font,
-      width: "100%",
-      marginTop: "16px",
+      display: "flex", gap: "8px", margin: "16px auto 0", flexWrap: "wrap", alignItems: "center", justifyContent: "center",
+      fontFamily: T.font, width: "fit-content", padding: "12px 24px", background: "rgba(255,255,255,0.02)", 
+      border: `1px solid rgba(255,255,255,0.05)`, borderRadius: "8px"
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(16, 185, 129, 0.1)", color: T.success, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}>
-          ✓
-        </div>
-        <div style={{ fontSize: "18px", fontWeight: 600, color: T.text }}>Project Ready</div>
+      <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)", fontWeight: 500, marginRight: "4px" }}>
+        🚀 Ready to Export
       </div>
-
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "24px" }}>
-        
-        {/* Artifacts */}
-        <div style={{ flex: "1 1 200px" }}>
-          <div style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.05em", color: T.textMuted, marginBottom: "12px", fontWeight: 600 }}>Artifacts Generated</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {generatedArtifacts.map((name, i) => (
-              <div key={i} style={{ fontSize: "13px", color: T.text, display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ color: T.border }}>•</span> <span style={{ textTransform: 'capitalize' }}>{name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Exports */}
-        <div style={{ flex: "1 1 200px" }}>
-          <div style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.05em", color: T.textMuted, marginBottom: "12px", fontWeight: 600 }}>Exports</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            {Object.entries(exportStatuses).map(([source, status]) => (
-              <div key={source} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "13px" }}>
-                <span style={{ color: T.text, textTransform: 'capitalize' }}>{source}</span>
-                <span style={{ color: status === 'Success' ? T.success : status === 'Failed' ? T.failed : T.textMuted }}>{status}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Generation Time */}
-        <div style={{ flex: "1 1 200px" }}>
-          <div style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.05em", color: T.textMuted, marginBottom: "12px", fontWeight: 600 }}>Generation Time</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: T.textMuted }}>
-              <span>Documentation</span> <span>{(totalPipelineDuration / 1000).toFixed(1)}s</span>
-            </div>
-            {githubDuration > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: T.textMuted }}>
-                <span>GitHub</span> <span>{(githubDuration / 1000).toFixed(1)}s</span>
-              </div>
-            )}
-            {notionDuration > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: T.textMuted }}>
-                <span>Notion</span> <span>{(notionDuration / 1000).toFixed(1)}s</span>
-              </div>
-            )}
-            {jiraDuration > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: T.textMuted }}>
-                <span>Jira</span> <span>{(jiraDuration / 1000).toFixed(1)}s</span>
-              </div>
-            )}
-            <div style={{ height: "1px", background: T.border, margin: "4px 0" }} />
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: T.text, fontWeight: 600 }}>
-              <span>Total</span> <span>{(totalDuration / 1000).toFixed(1)}s</span>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Action Buttons */}
-      <div style={{ display: "flex", gap: "12px", marginTop: "8px", flexWrap: "wrap" }}>
-        {notionUrl && (
-          <a href={notionUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-            <button style={{ padding: "8px 16px", background: T.accent, color: "#000", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
-              📄 Open Notion Documentation
-            </button>
-          </a>
-        )}
-        {githubUrl && (
-          <a href={githubUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-            <button style={{ padding: "8px 16px", background: T.text, color: "#000", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
-              Open GitHub Repository
-            </button>
-          </a>
-        )}
-        {jiraUrl && (
-          <a href={jiraUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-            <button style={{ padding: "8px 16px", background: "#0052CC", color: "#fff", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
-              🟦 Open Jira Project
-            </button>
-          </a>
-        )}
-      </div>
+      {renderOptionButton('github', 'GitHub', integrationData.github, urls.github)}
+      {renderOptionButton('jira', 'Jira', integrationData.jira, urls.jira)}
+      {renderOptionButton('notion', 'Notion', integrationData.notion, urls.notion)}
     </div>
   );
 }
