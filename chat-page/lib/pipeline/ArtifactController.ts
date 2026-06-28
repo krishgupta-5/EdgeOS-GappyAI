@@ -687,7 +687,7 @@ CRITICAL RULES:
     await firestoreService.saveArtifact(
       state.sessionId,
       state.userId,
-      'dbSchema',
+      'db',
       JSON.stringify(dbSchema),
       `Database schema with entities defined via Mermaid ER diagram.`,
       metadata,

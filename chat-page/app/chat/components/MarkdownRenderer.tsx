@@ -226,10 +226,11 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
   }
   // If a code block was never closed, flush its lines back as regular text (don't try to render as code/mermaid)
   if (currentCode) {
+    const code = currentCode as { language: string; lines: string[]; startIdx: number };
     // Push the opening fence line as regular text
-    blocks.push({ type: "line", content: "```" + currentCode.language, isFirst: !firstElementSet, originalIndex: currentCode.startIdx });
+    blocks.push({ type: "line", content: "```" + code.language, isFirst: !firstElementSet, originalIndex: code.startIdx });
     firstElementSet = true;
-    for (const cl of currentCode.lines) {
+    for (const cl of code.lines) {
       const t = cl.trim();
       if (t) {
         blocks.push({ type: "line", content: t, isFirst: false });

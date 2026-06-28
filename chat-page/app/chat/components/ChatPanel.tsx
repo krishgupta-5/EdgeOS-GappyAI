@@ -410,7 +410,7 @@ export default function ChatPanel({
         let latestResult: any = {};
         for (const [key, artifact] of Object.entries(rawArtifacts) as [string, any][]) {
           const mappedKey = singleArtifactToKey[key] || key;
-          if (key === 'db') {
+          if (key === 'db' || key === 'dbSchema') {
             try { latestResult.dbSchema = JSON.parse(artifact.content); } catch {}
           } else {
             latestResult[mappedKey] = artifact.content;
@@ -955,11 +955,6 @@ export default function ChatPanel({
                     <TypingStatusText artifact={generatingArtifact} isExporting={isExporting} />
                   </div>
                 </div>
-              )}
-
-              {/* Live Timeline during generation/export */}
-              {!isSharedView && (isTyping || isExporting) && liveEvents.length > 0 && (
-                <LiveActivityTimeline events={liveEvents} />
               )}
 
               {/* Integration Prompt Card (formerly Final Summary) after generation finishes */}
