@@ -9,6 +9,8 @@ interface DbSchemaViewerProps {
 
 type ViewMode = "diagram" | "source";
 
+
+
 export default function DbSchemaViewer({
   mermaid: mermaidSource,
 }: DbSchemaViewerProps) {
@@ -52,7 +54,7 @@ export default function DbSchemaViewer({
     
     return cleaned;
   });
-  
+
   let cleanSource = cleanedLines.join('\n');
 
   const processedMermaid = cleanSource.includes("direction")
