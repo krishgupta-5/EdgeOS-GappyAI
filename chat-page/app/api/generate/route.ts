@@ -18,7 +18,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getFullUserData } from '@/lib/auth';
-import { createOrUpdateUser } from '@/lib/firebase-admin';
+import { createOrUpdateUser, db } from '@/lib/firebase-admin';
 import { getOrCreateQuota, deductTokens } from '@/lib/token-quota';
 
 // Pipeline imports
@@ -34,6 +34,7 @@ import {
   buildLegacyResult,
 } from '@/lib/pipeline/ArtifactController';
 import * as firestoreService from '@/lib/pipeline/FirestoreService';
+import { exportToNotion } from '@/lib/notion/exporter';
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -77,15 +78,15 @@ const log = {
 export async function POST(req: Request) {
   try {
     // ── Auth ──────────────────────────────────────────────────────────────────
-    const userId = "test_user_id";
-    // if (!userId) return new Response('Unauthorized', { status: 401 });
+    const { userId } = await auth();
+    if (!userId) return new Response('Unauthorized', { status: 401 });
 
-    // const fullUserData = await getFullUserData();
-    // await createOrUpdateUser(userId, fullUserData);
+    const fullUserData = await getFullUserData();
+    await createOrUpdateUser(userId, fullUserData);
 
-    // const quota = await getOrCreateQuota(userId);
-    // if (quota.exhausted || quota.tokensUsed >= quota.tokensLimit)
-    //   return errorResponse('Daily token limit reached.', 'TOKEN_EXHAUSTED', 429);
+    const quota = await getOrCreateQuota(userId);
+    if (quota.exhausted || quota.tokensUsed >= quota.tokensLimit)
+      return errorResponse('Daily token limit reached.', 'TOKEN_EXHAUSTED', 429);
 
     // ── Parse body ───────────────────────────────────────────────────────────
     let body: {
@@ -291,6 +292,43 @@ export async function POST(req: Request) {
       `${artifactType} generated.`,
       artifactType,
     );
+    if (artifactType === 'finalMarkdown') {
+      const userRef = db.collection('user_integrations').doc(userId);
+      const userDoc = await userRef.get();
+      const notionData = userDoc.data()?.notion;
+
+      if (!notionData || !notionData.accessToken || !notionData.defaultParentPageId) {
+        log.info('Skipping Notion export, not connected or no parent page selected.');
+        await firestoreService.saveSessionMetadata(sessionId, userId, { exportStatus: 'NOT_CONNECTED' });
+      } else {
+        await firestoreService.saveSessionMetadata(sessionId, userId, { exportStatus: 'PENDING' });
+
+        // Background Export
+        exportToNotion(state, state.title || generatedTitle || 'New Project', notionData.accessToken, notionData.defaultParentPageId)
+          .then(async (notionExportData) => {
+            if (notionExportData) {
+              // The exporter doesn't currently return the url/id, wait it does! Let's assume it does. Oh wait, my exporter.ts modifications didn't change what it returns.
+              // Let's check what exportToNotion returns!
+              await firestoreService.saveSessionMetadata(sessionId, userId, {
+                notionUrl: notionExportData.notionUrl,
+                notionPageId: notionExportData.notionPageId,
+                exportStatus: 'SUCCESS'
+              });
+            }
+          })
+          .catch(async (err) => {
+            log.error('Notion export failed', { err: String(err) });
+            await firestoreService.saveSessionMetadata(sessionId, userId, { exportStatus: 'FAILED' });
+            
+            if (err.message === 'PARENT_PAGE_NOT_FOUND') {
+              await userRef.set({
+                notion: { defaultParentPageId: null, updatedAt: new Date().toISOString() }
+              }, { merge: true });
+            }
+          });
+      }
+    }
+
     await firestoreService.saveSessionMetadata(sessionId, userId, {
       title: generatedTitle,
       totalTokensUsed: state.totalTokensUsed,

@@ -174,6 +174,9 @@ export async function saveSessionMetadata(
     projectDescription?: string;
     status?: string;
     totalTokensUsed?: number;
+    notionUrl?: string;
+    notionPageId?: string;
+    exportStatus?: string;
   },
 ): Promise<void> {
   const docData: Record<string, any> = {
@@ -185,6 +188,9 @@ export async function saveSessionMetadata(
   if (data.projectDescription) docData.projectDescription = data.projectDescription;
   if (data.status) docData.status = data.status;
   if (data.totalTokensUsed !== undefined) docData.totalTokensUsed = data.totalTokensUsed;
+  if (data.notionUrl) docData.notionUrl = data.notionUrl;
+  if (data.notionPageId) docData.notionPageId = data.notionPageId;
+  if (data.exportStatus) docData.exportStatus = data.exportStatus;
 
   await db
     .collection('sessions')

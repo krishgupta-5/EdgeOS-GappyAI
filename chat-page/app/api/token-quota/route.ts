@@ -11,7 +11,7 @@ export async function GET() {
   const quota = await getOrCreateQuota(userId);
 
   // Calculate reset time
-  const resetAt = quota.windowStart + 0 * 60 * 60 * 1000;
+  const resetAt = quota.windowStart + 24 * 60 * 60 * 1000;
 
   return NextResponse.json({
     tokensUsed: quota.tokensUsed,

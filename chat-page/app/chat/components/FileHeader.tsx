@@ -39,7 +39,7 @@ export default function FileHeader({ msg, markdownMode, setMarkdownMode }: FileH
     <div
       style={{
         padding: "10px 16px",
-        background: "#09090b",
+        background: "transparent",
         borderBottom: "1px solid #18181b",
         display: "flex",
         alignItems: "center",

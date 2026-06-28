@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/firebase-admin";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: Request) {
   try {
     // Authentication check
@@ -21,16 +23,29 @@ export async function GET(req: Request) {
       );
     }
 
-    // Get messages from Firestore (no orderBy to avoid index requirement)
-    let messagesSnapshot;
+    // Get messages, artifacts, and session document from Firestore concurrently
+    let messagesSnapshot, artifactsSnapshot, sessionSnapshot;
     try {
-      messagesSnapshot = await db
+      const msgsPromise = db
         .collection("sessions")
         .doc(sessionId)
         .collection("messages")
         .get();
+        
+      const artifactsPromise = db
+        .collection("sessions")
+        .doc(sessionId)
+        .collection("artifacts")
+        .get();
+        
+      const sessionPromise = db
+        .collection("sessions")
+        .doc(sessionId)
+        .get();
+        
+      [messagesSnapshot, artifactsSnapshot, sessionSnapshot] = await Promise.all([msgsPromise, artifactsPromise, sessionPromise]);
     } catch (error) {
-      console.error("Failed to fetch messages from Firestore:", error);
+      console.error("Failed to fetch data from Firestore:", error);
       return NextResponse.json({ error: "Database error" }, { status: 500 });
     }
 
@@ -44,13 +59,22 @@ export async function GET(req: Request) {
       };
     });
 
+    const artifacts: Record<string, any> = {};
+    artifactsSnapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      // Omit id since it's just the type
+      artifacts[data.type] = data;
+    });
+
     // Sort by createdAt ascending (oldest first)
     messages.sort(
       (a, b) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     );
+    
+    const sessionData = sessionSnapshot.exists ? sessionSnapshot.data() : {};
 
-    return NextResponse.json({ messages });
+    return NextResponse.json({ messages, artifacts, notionUrl: sessionData?.notionUrl, exportStatus: sessionData?.exportStatus });
   } catch (error) {
     console.error("Failed to load chat history:", error);
     return NextResponse.json(

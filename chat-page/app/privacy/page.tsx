@@ -1,430 +1,290 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+// ── Shared Minimal Design Tokens ──────────────────────────────────────
+const T = {
+  bg: "#09090b",
+  surface: "rgba(255, 255, 255, 0.02)",
+  surfaceHover: "rgba(255, 255, 255, 0.04)",
+  border: "rgba(255, 255, 255, 0.08)",
+  borderHover: "rgba(255, 255, 255, 0.15)",
+  text: "#ffffff",
+  textMuted: "#a1a1aa",
+  textHint: "#71717a",
+  font: "var(--font-inter), system-ui, -apple-system, sans-serif",
+};
+
 export default function PrivacyPolicy() {
   const router = useRouter();
+  const [activeSection, setActiveSection] = useState("introduction");
+  const isClickScrolling = useRef(false);
+
+  // Reliable Scroll Spy for the Index
+  useEffect(() => {
+    const sections = ["introduction", "information", "security", "contact"];
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !isClickScrolling.current) {
+            setActiveSection(entry.target.id);
+          }
+        });
+      },
+      { rootMargin: "-20% 0px -70% 0px" } // Triggers when the section is near the top
+    );
+
+    sections.forEach((id) => {
+      const element = document.getElementById(id);
+      if (element) observer.observe(element);
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  const scrollTo = (id: string) => {
+    setActiveSection(id);
+    isClickScrolling.current = true;
+    
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    // Re-enable scroll spy after scroll animation finishes
+    setTimeout(() => {
+      isClickScrolling.current = false;
+    }, 800);
+  };
+
   return (
     <div
       style={{
-        height: "100vh", // Fixed: Restricts height to viewport
-        overflowY: "auto", // Fixed: Forces this container to handle scrolling
-        backgroundColor: "#000000",
-        color: "#EAEAEA",
+        height: "100vh",
+        overflowY: "auto",
+        overflowX: "hidden",
+        width: "100%",
+        backgroundColor: T.bg,
+        color: T.text,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        padding: "100px 24px 60px",
-        fontFamily: '"Geist", sans-serif',
+        padding: "48px 24px 80px",
+        fontFamily: T.font,
       }}
     >
-      {/* ───────────────────────────────────────────── */}
-      {/* PAGE HEADER                                   */}
-      {/* ───────────────────────────────────────────── */}
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "800px",
-          display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "space-between",
-          marginBottom: "64px",
-          paddingBottom: "24px",
-          borderBottom: "1px solid #1A1A1A",
-          flexWrap: "wrap",
-          gap: "24px",
-          flexShrink: 0, // Prevents header from squishing
-        }}
-      >
-        <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
+      <div style={{ width: "100%", maxWidth: "900px", display: "flex", flexDirection: "column", flex: 1 }}>
+
+        {/* ───────────────────────────────────────────── */}
+        {/* PAGE HEADER                                   */}
+        {/* ───────────────────────────────────────────── */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: "20px",
+          marginBottom: "40px", paddingBottom: "24px", borderBottom: `1px solid ${T.border}`,
+          animation: "fadeUp 0.4s ease-out both"
+        }}>
           <button
             onClick={() => router.back()}
-              style={{
-                width: "36px",
-                height: "36px",
-                background: "transparent",
-                border: "1px solid #222",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: "4px",
-                cursor: "pointer",
-                color: "#888",
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = "#EAEAEA";
-                e.currentTarget.style.background = "#111";
-                e.currentTarget.style.borderColor = "#444";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = "#888";
-                e.currentTarget.style.background = "transparent";
-                e.currentTarget.style.borderColor = "#222";
-              }}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              >
-                <line x1="19" y1="12" x2="5" y2="12" />
-                <polyline points="12 19 5 12 12 5" />
-              </svg>
-            </button>
+            style={{
+              width: "36px", height: "36px", background: "transparent", border: `1px solid ${T.border}`,
+              display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "8px",
+              cursor: "pointer", color: T.textMuted, transition: "all 0.15s ease", flexShrink: 0
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.color = T.text;
+              e.currentTarget.style.background = T.surfaceHover;
+              e.currentTarget.style.borderColor = T.textHint;
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.color = T.textMuted;
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.borderColor = T.border;
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12" />
+              <polyline points="12 19 5 12 12 5" />
+            </svg>
+          </button>
 
           <div>
-            <div
-              style={{
-                fontSize: "14px",
-                fontWeight: 600,
-                color: "#EAEAEA",
-                fontFamily: '"Geist Mono", monospace',
-                letterSpacing: "1px",
-                textTransform: "uppercase",
-              }}
-            >
+            <h1 style={{ fontSize: "22px", fontWeight: 600, color: T.text, margin: "0 0 4px 0", letterSpacing: "-0.01em" }}>
               Privacy Policy
+            </h1>
+            <p style={{ color: T.textHint, fontSize: "13px", margin: 0 }}>
+              Last updated: June 27, 2026
+            </p>
+          </div>
+        </div>
+
+        {/* ───────────────────────────────────────────── */}
+        {/* DUAL-COLUMN LAYOUT                            */}
+        {/* ───────────────────────────────────────────── */}
+        <div style={{ display: "flex", flexDirection: "row", gap: "40px", flexWrap: "wrap", alignItems: "flex-start" }}>
+
+          {/* LEFT SIDEBAR: Sticky Index */}
+          <aside style={{
+            width: "220px", flexShrink: 0, position: "sticky", top: "40px",
+            display: "flex", flexDirection: "column",
+            animation: "fadeUp 0.4s ease-out 0.1s both",
+          }}>
+            <div style={{ fontSize: "11px", color: T.textHint, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "12px", paddingLeft: "12px", fontWeight: 600 }}>
+              Contents
             </div>
-            <p
-              style={{
-                color: "#A1A1AA",
-                fontSize: "13px",
-                marginTop: "6px",
-                marginBottom: 0,
-                lineHeight: "1.5",
-              }}
-            >
-              Last updated: {new Date().toLocaleDateString()}
-            </p>
-          </div>
+            
+            <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: "2px" }}>
+              {/* Sliding Highlighter */}
+              <div style={{
+                position: "absolute", left: 0, right: 0, height: "35px",
+                background: T.surfaceHover, borderRadius: "6px", zIndex: 0,
+                transition: "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                transform: `translateY(${
+                  activeSection === "introduction" ? 0 :
+                  activeSection === "information" ? 37 :
+                  activeSection === "security" ? 74 :
+                  activeSection === "contact" ? 111 : 0
+                }px)`
+              }} />
+
+              <NavButton active={activeSection === "introduction"} onClick={() => scrollTo("introduction")} label="1. Introduction" />
+              <NavButton active={activeSection === "information"} onClick={() => scrollTo("information")} label="2. Information Collected" />
+              <NavButton active={activeSection === "security"} onClick={() => scrollTo("security")} label="3. Data Security" />
+              <NavButton active={activeSection === "contact"} onClick={() => scrollTo("contact")} label="4. Contact Details" />
+            </div>
+          </aside>
+
+          {/* RIGHT COLUMN: Document Content */}
+          <main style={{
+            flex: 1, minWidth: "300px",
+            background: T.surface, border: `1px solid ${T.border}`,
+            borderRadius: "12px", padding: "32px",
+            animation: "fadeUp 0.4s ease-out 0.2s both",
+            display: "flex", flexDirection: "column", gap: "40px"
+          }}>
+
+            <div id="introduction">
+              <PolicySection title="1. Introduction">
+                EdgeOS ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our developer platform and AI services.
+              </PolicySection>
+            </div>
+
+            <div style={{ height: "1px", width: "100%", background: T.border }} />
+
+            <div id="information">
+              <PolicySection title="2. Information We Collect">
+                We collect information through two primary channels to ensure optimal performance and security of our workspace environment:
+                <ul style={{ paddingLeft: "16px", margin: "16px 0 0 0", display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <li>
+                    <strong style={{ color: T.text, fontWeight: 500 }}>Account & Identity:</strong> Email, name, and necessary registration details to establish your workspace and prevent unauthorized access.
+                  </li>
+                  <li>
+                    <strong style={{ color: T.text, fontWeight: 500 }}>Telemetry & Quotas:</strong> Interactions with AI assistants strictly to manage compute resources, token quotas, and system reliability.
+                  </li>
+                  <li>
+                    <strong style={{ color: T.text, fontWeight: 500 }}>Project Artifacts:</strong> The architecture, code, and specifications generated within your private sessions.
+                  </li>
+                </ul>
+              </PolicySection>
+            </div>
+
+            <div style={{ height: "1px", width: "100%", background: T.border }} />
+
+            <div id="security">
+              <PolicySection title="3. Data Security & Storage">
+                Your data is protected by industry-standard technical measures. We utilize end-to-end encryption for sensitive data in transit, secure server architectures, and routine access audits.
+                <br /><br />
+                <span style={{ color: T.text, fontWeight: 500 }}>Model Training Policy:</span> Your project data, code snippets, and proprietary architectures are completely isolated. They are <strong style={{ color: T.text }}>never</strong> used to train our generalized AI models without your explicit, opt-in consent.
+              </PolicySection>
+            </div>
+
+            <div style={{ height: "1px", width: "100%", background: T.border }} />
+
+            <div id="contact">
+              <PolicySection title="4. Contact Information">
+                If you have questions regarding your data, GDPR compliance, or wish to exercise your "Right to be Forgotten," our privacy engineering team is available directly at:
+                <div style={{
+                  marginTop: "16px", padding: "12px 16px", background: "rgba(255,255,255,0.03)",
+                  borderRadius: "6px", border: `1px solid ${T.border}`, fontFamily: "Consolas, 'Courier New', monospace",
+                  fontSize: "13px", color: T.text, display: "inline-block"
+                }}>
+                  privacy@edgeos.com
+                </div>
+              </PolicySection>
+            </div>
+
+          </main>
+        </div>
+
+        {/* ───────────────────────────────────────────── */}
+        {/* FOOTER                                        */}
+        {/* ───────────────────────────────────────────── */}
+        <div style={{
+          marginTop: "64px", paddingTop: "24px", borderTop: `1px solid ${T.border}`,
+          display: "flex", gap: "20px", color: T.textHint, fontSize: "12px",
+          textTransform: "uppercase", letterSpacing: "0.05em",
+          animation: "fadeUp 0.4s ease-out 0.3s both"
+        }}>
+          <Link href="/terms" style={{ color: "inherit", textDecoration: "none", transition: "color 0.15s" }}
+            onMouseEnter={e => e.currentTarget.style.color = T.text}
+            onMouseLeave={e => e.currentTarget.style.color = T.textHint}>
+            Terms of Service
+          </Link>
+          <span>&bull;</span>
+          <Link href="/privacy" style={{ color: T.text, textDecoration: "none" }}>
+            Privacy Policy
+          </Link>
         </div>
       </div>
 
-      {/* ───────────────────────────────────────────── */}
-      {/* CONTENT                                       */}
-      {/* ───────────────────────────────────────────── */}
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "800px",
-          lineHeight: "1.8",
-          display: "flex",
-          flexDirection: "column",
-          gap: "48px",
-          flexShrink: 0, // Prevents content from squishing
-        }}
-      >
-        <div>
-          <h2
-            style={{
-              fontSize: "14px",
-              fontFamily: '"Geist Mono", monospace',
-              textTransform: "uppercase",
-              letterSpacing: "1px",
-              color: "#EAEAEA",
-              marginBottom: "16px",
-              fontWeight: 600,
-            }}
-          >
-            1. Introduction
-          </h2>
-          <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-            EdgeOS ("we," "our," or "us") is committed to protecting your
-            privacy. This Privacy Policy explains how we collect, use, disclose,
-            and safeguard your information when you use our developer platform
-            and services.
-          </p>
-        </div>
+      {/* Animations */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @keyframes fadeUp { 
+          from { opacity: 0; transform: translateY(12px); } 
+          to { opacity: 1; transform: translateY(0); } 
+        }
+      `}} />
+    </div>
+  );
+}
 
-        <div>
-          <h2
-            style={{
-              fontSize: "14px",
-              fontFamily: '"Geist Mono", monospace',
-              textTransform: "uppercase",
-              letterSpacing: "1px",
-              color: "#EAEAEA",
-              marginBottom: "16px",
-              fontWeight: 600,
-            }}
-          >
-            2. Information We Collect
-          </h2>
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
-          >
-            <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-              <strong style={{ color: "#EAEAEA" }}>Account Information:</strong>{" "}
-              When you create an account, we collect your email address, name,
-              and other information you provide during registration.
-            </p>
-            <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-              <strong style={{ color: "#EAEAEA" }}>Usage Data:</strong> We
-              collect information about how you use our service, including
-              features accessed, time spent, and interactions with our AI
-              assistants.
-            </p>
-            <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-              <strong style={{ color: "#EAEAEA" }}>Code and Projects:</strong>{" "}
-              We store code and project data you create or upload to our
-              platform to provide our services.
-            </p>
-            <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-              <strong style={{ color: "#EAEAEA" }}>Technical Data:</strong> We
-              collect device information, IP address, browser type, and other
-              technical data to ensure service performance and security.
-            </p>
-          </div>
-        </div>
+// ── Shared UI Components ──────────────────────────────────────────────
 
-        <div>
-          <h2
-            style={{
-              fontSize: "14px",
-              fontFamily: '"Geist Mono", monospace',
-              textTransform: "uppercase",
-              letterSpacing: "1px",
-              color: "#EAEAEA",
-              marginBottom: "16px",
-              fontWeight: 600,
-            }}
-          >
-            3. How We Use Your Information
-          </h2>
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
-          >
-            <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-              <strong style={{ color: "#EAEAEA" }}>Service Provision:</strong>{" "}
-              To provide, maintain, and improve our developer platform and AI
-              services.
-            </p>
-            <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-              <strong style={{ color: "#EAEAEA" }}>Communication:</strong> To
-              respond to your inquiries, provide support, and send
-              service-related notifications.
-            </p>
-            <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-              <strong style={{ color: "#EAEAEA" }}>Security:</strong> To detect
-              and prevent fraud, abuse, and security issues.
-            </p>
-            <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-              <strong style={{ color: "#EAEAEA" }}>Analytics:</strong> To
-              analyze usage patterns and improve our services and user
-              experience.
-            </p>
-          </div>
-        </div>
+function NavButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void; }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        textAlign: "left", padding: "8px 12px", borderRadius: "6px", fontSize: "13px", fontFamily: T.font,
+        fontWeight: 500, transition: "all 0.15s ease", cursor: "pointer", border: "none", outline: "none",
+        background: "transparent", position: "relative", zIndex: 1,
+        color: active ? T.text : T.textMuted,
+      }}
+      onMouseEnter={(e) => {
+        if (!active) { e.currentTarget.style.color = T.text; }
+      }}
+      onMouseLeave={(e) => {
+        if (!active) { e.currentTarget.style.color = T.textMuted; }
+      }}
+    >
+      {label}
+    </button>
+  );
+}
 
-        <div>
-          <h2
-            style={{
-              fontSize: "14px",
-              fontFamily: '"Geist Mono", monospace',
-              textTransform: "uppercase",
-              letterSpacing: "1px",
-              color: "#EAEAEA",
-              marginBottom: "16px",
-              fontWeight: 600,
-            }}
-          >
-            4. Information Sharing and Disclosure
-          </h2>
-          <p
-            style={{ color: "#A1A1AA", fontSize: "15px", marginBottom: "16px" }}
-          >
-            We do not sell, trade, or otherwise transfer your personal
-            information to third parties except as described in this policy:
-          </p>
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
-          >
-            <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-              <strong style={{ color: "#EAEAEA" }}>Service Providers:</strong>{" "}
-              We may share information with trusted third-party service
-              providers who assist us in operating our service.
-            </p>
-            <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-              <strong style={{ color: "#EAEAEA" }}>Legal Requirements:</strong>{" "}
-              We may disclose your information if required by law or to protect
-              our rights, property, or safety.
-            </p>
-            <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-              <strong style={{ color: "#EAEAEA" }}>Business Transfers:</strong>{" "}
-              Information may be transferred in connection with a merger,
-              acquisition, or sale of assets.
-            </p>
-          </div>
-        </div>
-
-        <div>
-          <h2
-            style={{
-              fontSize: "14px",
-              fontFamily: '"Geist Mono", monospace',
-              textTransform: "uppercase",
-              letterSpacing: "1px",
-              color: "#EAEAEA",
-              marginBottom: "16px",
-              fontWeight: 600,
-            }}
-          >
-            5. Data Security
-          </h2>
-          <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-            We implement appropriate technical and organizational measures to
-            protect your personal information against unauthorized access,
-            alteration, disclosure, or destruction. This includes encryption,
-            secure servers, and regular security audits.
-          </p>
-        </div>
-
-        <div>
-          <h2
-            style={{
-              fontSize: "14px",
-              fontFamily: '"Geist Mono", monospace',
-              textTransform: "uppercase",
-              letterSpacing: "1px",
-              color: "#EAEAEA",
-              marginBottom: "16px",
-              fontWeight: 600,
-            }}
-          >
-            6. Data Retention
-          </h2>
-          <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-            We retain your personal information for as long as necessary to
-            provide our services and fulfill the purposes outlined in this
-            policy, unless a longer retention period is required or permitted by
-            law.
-          </p>
-        </div>
-
-        <div>
-          <h2
-            style={{
-              fontSize: "14px",
-              fontFamily: '"Geist Mono", monospace',
-              textTransform: "uppercase",
-              letterSpacing: "1px",
-              color: "#EAEAEA",
-              marginBottom: "16px",
-              fontWeight: 600,
-            }}
-          >
-            7. Your Rights and Choices
-          </h2>
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "16px" }}
-          >
-            <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-              <strong style={{ color: "#EAEAEA" }}>Access:</strong> You can
-              access and update your account information through your account
-              settings.
-            </p>
-            <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-              <strong style={{ color: "#EAEAEA" }}>Deletion:</strong> You can
-              request deletion of your account and associated data by contacting
-              us or using account deletion features.
-            </p>
-            <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-              <strong style={{ color: "#EAEAEA" }}>Opt-out:</strong> You can opt
-              out of certain communications and data processing activities
-              through your account settings.
-            </p>
-            <p style={{ color: "#A1A1AA", fontSize: "15px", margin: 0 }}>
-              <strong style={{ color: "#EAEAEA" }}>Data Portability:</strong>{" "}
-              You can request a copy of your personal data in a structured,
-              machine-readable format.
-            </p>
-          </div>
-        </div>
-
-        <div>
-          <h2
-            style={{
-              fontSize: "14px",
-              fontFamily: '"Geist Mono", monospace',
-              textTransform: "uppercase",
-              letterSpacing: "1px",
-              color: "#EAEAEA",
-              marginBottom: "16px",
-              fontWeight: 600,
-            }}
-          >
-            8. Contact Information
-          </h2>
-          <p
-            style={{ color: "#A1A1AA", fontSize: "15px", marginBottom: "16px" }}
-          >
-            If you have any questions about this Privacy Policy or your data
-            rights, please contact us at:
-          </p>
-          <p
-            style={{
-              color: "#EAEAEA",
-              fontSize: "15px",
-              margin: 0,
-              fontFamily: '"Geist Mono", monospace',
-            }}
-          >
-            Email: privacy@edgeos.com
-            <br />
-            Address: Privacy Team, EdgeOS Inc.
-          </p>
-        </div>
-      </div>
-
-      {/* ───────────────────────────────────────────── */}
-      {/* CUSTOM FIXED FOOTER                           */}
-      {/* ───────────────────────────────────────────── */}
-      <div
-        style={{
-          marginTop: "auto",
-          paddingTop: "80px",
-          display: "flex",
-          gap: "24px",
-          color: "#444",
-          fontSize: "11px",
-          fontFamily: '"Geist Mono", monospace',
-          textTransform: "uppercase",
-          letterSpacing: "1px",
-          flexShrink: 0, // Keeps footer from getting crushed
-        }}
-      >
-        <Link
-          href="/terms"
-          style={{
-            color: "inherit",
-            textDecoration: "none",
-            transition: "color 0.2s",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#EAEAEA")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#444")}
-        >
-          Terms of Service
-        </Link>
-        <span>&bull;</span>
-        <Link
-          href="/privacy"
-          style={{
-            color: "inherit",
-            textDecoration: "none",
-            transition: "color 0.2s",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#EAEAEA")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#444")}
-        >
-          Privacy Policy
-        </Link>
+function PolicySection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h2 style={{
+        fontSize: "15px", fontWeight: 600, color: T.text, marginBottom: "12px",
+        letterSpacing: "-0.01em"
+      }}>
+        {title}
+      </h2>
+      <div style={{ color: T.textMuted, fontSize: "14px", lineHeight: "1.6", fontWeight: 400 }}>
+        {children}
       </div>
     </div>
   );

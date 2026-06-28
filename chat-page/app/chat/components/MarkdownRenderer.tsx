@@ -2,6 +2,20 @@
 
 import React from "react";
 
+// ── EdgeOS Design Tokens (Onyx Minimal Palette) ──────────
+const T = {
+  bg: "#09090b",
+  surface: "#121214",
+  surfaceHover: "#18181b",
+  border: "#27272a",
+  borderHover: "#3f3f46",
+  text: "#ededed",
+  textMuted: "#a1a1aa",
+  textHint: "#71717a",
+  accent: "#ffffff",
+  font: "var(--font-satoshi), system-ui, -apple-system, sans-serif",
+};
+
 interface MarkdownRendererProps {
   content: string;
 }
@@ -9,7 +23,7 @@ interface MarkdownRendererProps {
 export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
   /**
    * Robust inline parser for **bold** and `code` tags.
-   * Works inside headers, lists, and paragraphs.
+   * Works inside headers, lists, paragraphs, and tables.
    */
   const renderInlineText = (text: string) => {
     const parts = text.split(/(\*\*.*?\*\*|`[^`]+`)/g);
@@ -17,7 +31,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
     return parts.map((part, index) => {
       if (part.startsWith("**") && part.endsWith("**")) {
         return (
-          <span key={index} style={{ color: "#FAFAFA", fontWeight: 600 }}>
+          <span key={index} style={{ color: T.text, fontWeight: 600 }}>
             {part.slice(2, -2)}
           </span>
         );
@@ -27,13 +41,13 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
           <code
             key={index}
             style={{
-              fontSize: "12px",
-              background: "#18181B",
-              color: "#38BDF8",
-              padding: "2px 6px",
-              borderRadius: "4px",
-              border: "1px solid #27272A",
-              fontFamily: '"Geist Mono", monospace',
+              fontSize: "13px",
+              background: T.surfaceHover,
+              color: T.text,
+              padding: "4px 8px",
+              borderRadius: "6px",
+              border: `1px solid ${T.border}`,
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
             }}
           >
             {part.slice(1, -1)}
@@ -53,15 +67,104 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
 
   const lines = rawLines.slice(firstNonEmptyIndex);
 
+  // 3. Pre-process blocks to group tables together
+  const blocks: { type: string; content?: string; lines?: string[]; isFirst?: boolean; originalIndex?: number }[] = [];
+  let currentTable: string[] | null = null;
+  let firstElementSet = false;
+
+  lines.forEach((line, i) => {
+    const tLine = line.trim();
+
+    if (tLine.startsWith("|") && tLine.endsWith("|")) {
+      if (!currentTable) currentTable = [];
+      currentTable.push(tLine);
+    } else {
+      if (currentTable) {
+        blocks.push({ type: "table", lines: currentTable, isFirst: !firstElementSet });
+        firstElementSet = true;
+        currentTable = null;
+      }
+
+      if (tLine) {
+        blocks.push({ type: "line", content: tLine, isFirst: !firstElementSet, originalIndex: i });
+        firstElementSet = true;
+      } else {
+        blocks.push({ type: "empty" });
+      }
+    }
+  });
+
+  if (currentTable) {
+    blocks.push({ type: "table", lines: currentTable, isFirst: !firstElementSet });
+  }
+
+  // 4. Helper to determine if a table row is just the structural markdown separator (e.g. |---|---|)
+  const isTableSeparator = (line: string) => {
+    const chars = line.replace(/[\s\|]/g, '');
+    return chars.length > 0 && chars.split('').every(c => c === '-' || c === ':');
+  };
+
   return (
-    <div style={{ fontFamily: '"Geist", sans-serif', width: "100%" }}>
-      {lines.map((line, i) => {
-        const tLine = line.trim();
-        const isFirstElement = i === 0;
+    <div style={{ fontFamily: T.font, width: "100%", letterSpacing: "0.01em" }}>
+      {blocks.map((block, i) => {
+        const isFirstElement = !!block.isFirst;
+
+        // ─── EMPTY LINES ───────────────────
+        if (block.type === "empty") {
+          return <div key={i} style={{ height: "16px" }} />;
+        }
+
+        // ─── TABLES ────────────────────────
+        if (block.type === "table" && block.lines) {
+          const rows = block.lines.filter(l => !isTableSeparator(l));
+          if (rows.length === 0) return null;
+
+          return (
+            <div key={`table-${i}`} style={{
+              marginTop: isFirstElement ? "0px" : "24px",
+              marginBottom: "24px",
+              overflowX: "auto",
+              border: `1px solid ${T.border}`,
+              borderRadius: "8px",
+              background: T.bg
+            }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px", textAlign: "left" }}>
+                <thead>
+                  <tr>
+                    {rows[0].split('|').filter((_, idx, arr) => idx !== 0 && idx !== arr.length - 1).map((cell, idx) => (
+                      <th key={idx} style={{
+                        padding: "12px 16px",
+                        background: T.surfaceHover,
+                        borderBottom: `1px solid ${T.border}`,
+                        color: T.text,
+                        fontWeight: 600
+                      }}>
+                        {renderInlineText(cell.trim())}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.slice(1).map((row, rIdx) => (
+                    <tr key={rIdx} style={{ borderBottom: rIdx === rows.length - 2 ? "none" : `1px solid ${T.border}` }}>
+                      {row.split('|').filter((_, idx, arr) => idx !== 0 && idx !== arr.length - 1).map((cell, cIdx) => (
+                        <td key={cIdx} style={{ padding: "10px 16px", color: T.textMuted, lineHeight: "1.6" }}>
+                          {renderInlineText(cell.trim())}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+
+        const tLine = block.content!;
 
         // ─── REMOVE HORIZONTAL RULES ───────
         if (tLine === "---" || tLine === "***" || tLine === "___") {
-          return null;
+          return <div key={i} style={{ height: "1px", background: T.border, margin: "24px 0" }} />;
         }
 
         // ─── H1 ────────────────────────────
@@ -70,12 +173,12 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
             <div
               key={i}
               style={{
-                color: "#FAFAFA",
-                fontSize: "20px",
+                color: T.text,
+                fontSize: "22px",
                 fontWeight: 600,
                 marginTop: isFirstElement ? "0px" : "32px",
                 marginBottom: "16px",
-                letterSpacing: "-0.5px",
+                letterSpacing: "-0.01em",
               }}
             >
               {renderInlineText(tLine.substring(2))}
@@ -89,25 +192,13 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
             <div
               key={i}
               style={{
-                color: "#F4F4F5",
-                fontSize: "16px",
+                color: T.text,
+                fontSize: "18px",
                 fontWeight: 600,
-                marginTop: isFirstElement ? "0px" : "28px",
+                marginTop: isFirstElement ? "0px" : "24px",
                 marginBottom: "12px",
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
               }}
             >
-              <span
-                style={{
-                  display: "inline-block",
-                  width: "3px",
-                  height: "16px",
-                  background: "#3B82F6",
-                  borderRadius: "2px",
-                }}
-              />
               {renderInlineText(tLine.substring(3))}
             </div>
           );
@@ -119,14 +210,13 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
             <div
               key={i}
               style={{
-                color: "#10B981",
-                fontSize: "11px",
-                fontWeight: 700,
-                marginTop: isFirstElement ? "0px" : "24px",
+                color: T.textMuted,
+                fontSize: "14px",
+                fontWeight: 600,
+                marginTop: isFirstElement ? "0px" : "20px",
                 marginBottom: "8px",
                 textTransform: "uppercase",
-                letterSpacing: "1px",
-                fontFamily: '"Geist Mono", monospace',
+                letterSpacing: "0.05em",
               }}
             >
               {renderInlineText(tLine.substring(4))}
@@ -140,15 +230,14 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
             <div
               key={i}
               style={{
-                padding: "12px 16px",
-                borderLeft: "3px solid #F59E0B",
-                background: "rgba(245, 158, 11, 0.05)",
-                color: "#A1A1AA",
+                padding: "10px 16px",
+                borderLeft: `2px solid ${T.borderHover}`,
+                color: T.textMuted,
                 fontStyle: "italic",
-                marginTop: isFirstElement ? "0px" : "4px",
-                marginBottom: "12px",
-                borderRadius: "0 4px 4px 0",
-                fontSize: "14px",
+                marginTop: isFirstElement ? "0px" : "12px",
+                marginBottom: "16px",
+                fontSize: "15px",
+                lineHeight: "1.6",
               }}
             >
               {renderInlineText(tLine.substring(2))}
@@ -162,14 +251,14 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
             <div
               key={i}
               style={{
-                color: "#D4D4D8",
+                color: "rgba(255,255,255,0.85)",
                 marginLeft: "4px",
                 marginBottom: "8px",
                 display: "flex",
                 alignItems: "flex-start",
-                gap: "12px",
+                gap: "10px",
                 lineHeight: "1.6",
-                fontSize: "14px",
+                fontSize: "15px",
               }}
             >
               <span
@@ -179,7 +268,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
                   width: "5px",
                   height: "5px",
                   borderRadius: "50%",
-                  background: "#3B82F6",
+                  background: T.textHint,
                   flexShrink: 0,
                 }}
               />
@@ -195,23 +284,22 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
             <div
               key={i}
               style={{
-                color: "#D4D4D8",
+                color: "rgba(255,255,255,0.85)",
                 marginLeft: "4px",
                 marginBottom: "8px",
                 display: "flex",
                 alignItems: "flex-start",
                 gap: "10px",
                 lineHeight: "1.6",
-                fontSize: "14px",
+                fontSize: "15px",
               }}
             >
               <span
                 style={{
-                  color: "#71717A",
-                  fontFamily: '"Geist Mono", monospace',
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  marginTop: "2px",
+                  color: T.textHint,
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  marginTop: "0px",
                   flexShrink: 0,
                 }}
               >
@@ -232,15 +320,14 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
           <div
             key={i}
             style={{
-              color: "#D4D4D8",
+              color: "rgba(255,255,255,0.85)",
               marginTop: isFirstElement ? "0px" : "0px",
-              marginBottom: tLine ? "12px" : "0px",
-              lineHeight: "1.7",
-              minHeight: tLine ? "auto" : "12px",
-              fontSize: "14px",
+              marginBottom: "4px",
+              lineHeight: "1.6",
+              fontSize: "15px",
             }}
           >
-            {tLine ? renderInlineText(tLine) : null}
+            {renderInlineText(tLine)}
           </div>
         );
       })}

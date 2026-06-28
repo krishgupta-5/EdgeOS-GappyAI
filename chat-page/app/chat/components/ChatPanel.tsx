@@ -44,6 +44,8 @@ export interface Message {
     dbSchema?: { mermaid: string; diagram: string };
   };
   options?: string[];
+  notionUrl?: string;
+  exportStatus?: string;
 }
 
 const initialMessages: Message[] = [];
@@ -131,27 +133,51 @@ const TemplateCard = ({ title, desc, icon, prompt, delay, onClick }: { title: st
   );
 };
 
-const typingPhrases = [
-  "Generating planning artifacts...",
-  "Analyzing product requirements...",
-  "Designing system architecture...",
-  "Generating API specifications...",
-  "Planning database schema...",
-  "Creating technical documentation...",
+const aiPhrases = [
+  "Synthesizing context...",
+  "Applying architectural patterns...",
+  "Optimizing structure...",
+  "Finalizing output...",
 ];
 
-const TypingStatusText = () => {
+const TypingStatusText = ({ artifact }: { artifact: string | null }) => {
   const [idx, setIdx] = useState(0);
   useEffect(() => {
     const interval = setInterval(() => {
-      setIdx((prev) => (prev + 1) % typingPhrases.length);
-    }, 2500);
+      setIdx((prev) => (prev + 1) % aiPhrases.length);
+    }, 2000);
     return () => clearInterval(interval);
   }, []);
+
+  const artifactMap: Record<string, string> = {
+    initial: "System Architecture",
+    config: "System Configuration",
+    docker: "Docker Environment",
+    markdown: "Project Documentation",
+    folderStructure: "Directory Structure",
+    apiDesign: "API Specifications",
+    testingPlan: "Testing Strategy",
+    userStories: "User Stories",
+    roadmap: "Product Roadmap",
+    deploymentGuide: "Deployment Infrastructure",
+    costEstimation: "Cost Analysis",
+    projectTimeline: "Project Timeline",
+    riskAnalysis: "Risk Assessment",
+    finalMarkdown: "Final Specification",
+    db: "Database Schema",
+  };
+
+  const artifactName = artifact ? (artifactMap[artifact] || "Artifacts") : "Response";
+
   return (
-    <span style={{ fontSize: "13px", color: T.textMuted, fontFamily: T.font, animation: "typingFade 2.5s infinite" }}>
-      {typingPhrases[idx]}
-    </span>
+    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <span style={{ fontSize: "13px", fontWeight: 600, color: "#ffffff", fontFamily: T.font, letterSpacing: "0.02em" }}>
+        Generating {artifactName}
+      </span>
+      <span style={{ fontSize: "13px", color: T.textHint, fontFamily: T.font, animation: "typingFade 2s infinite" }}>
+        {aiPhrases[idx]}
+      </span>
+    </div>
   );
 };
 
@@ -194,8 +220,18 @@ export default function ChatPanel({
   }, [user]);
 
   const [messages, setMessages] = useState<Message[]>(initialMessages);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(() => {
+    if (typeof window !== "undefined") {
+      const p = localStorage.getItem("pending_prompt");
+      if (p) {
+        localStorage.removeItem("pending_prompt");
+        return p;
+      }
+    }
+    return "";
+  });
   const [isTyping, setIsTyping] = useState(false);
+  const [generatingArtifact, setGeneratingArtifact] = useState<ArtifactType | null>(null);
   const [markdownMode, setMarkdownMode] = useState<Record<string, "code" | "preview">>({});
   const [generatedData, setGeneratedData] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -212,9 +248,22 @@ export default function ChatPanel({
     messageId: string; messageContent: string; messageRole: string;
   } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const scrollableRef = useRef<HTMLDivElement>(null);
+  const [showScrollDown, setShowScrollDown] = useState(false);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  useEffect(() => { scrollToBottom(); }, [messages, isTyping]);
+  
+  useEffect(() => { 
+    // Only auto-scroll if we are already at the bottom, or if AI is typing.
+    // If user explicitly scrolled up, don't force them down unless it's a new generation.
+    scrollToBottom(); 
+  }, [messages.length, isTyping]);
+
+  const handleScroll = () => {
+    if (!scrollableRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollableRef.current;
+    setShowScrollDown(scrollHeight - scrollTop - clientHeight > 100);
+  };
 
   useEffect(() => {
     if (!isSignedIn) return;
@@ -246,90 +295,174 @@ export default function ChatPanel({
 
   // Load chat history
   useEffect(() => {
+    let isMounted = true;
+    let pollingTimer: NodeJS.Timeout | null = null;
+    
     const load = async () => {
       if (!isSignedIn) return;
-      if (!sessionId) { setMessages([]); setGeneratedData(null); setHasGeneratedConfig(false); return; }
-      setMessages([]); setGeneratedData(null); setHasGeneratedConfig(false);
+      if (!sessionId) { 
+        if (isMounted) { setMessages([]); setGeneratedData(null); setHasGeneratedConfig(false); }
+        return; 
+      }
       try {
-        const res = await fetch(`/api/chat-history?sessionId=${sessionId}`);
+        const res = await fetch(`/api/chat-history?sessionId=${sessionId}`, { cache: "no-store" });
         if (!res.ok) return;
-        const { messages: rawAll = [] } = await res.json();
+        const resData = await res.json();
+        const { messages: rawAll = [], artifacts: rawArtifacts = {}, notionUrl, exportStatus } = resData;
         const raw: any[] = [];
         for (const msg of rawAll) {
           const prev = raw[raw.length - 1];
           if (prev && prev.role === msg.role && prev.content === msg.content) continue;
           raw.push(msg);
         }
-        let latestResult: any = null;
-        const singleKeyMap: Record<string, string> = {
-          config: "yaml", docker: "docker", markdown: "markdown",
-          folderStructure: "folderStructure", apiDesign: "apiDesign", testingPlan: "testingPlan",
+
+        const singleArtifactToKey: Record<string, string> = {
+          config: "yaml", docker: "docker", markdown: "markdown", folderStructure: "folderStructure",
+          apiDesign: "apiDesign", testingPlan: "testingPlan", userStories: "userStories",
+          roadmap: "roadmap", deploymentGuide: "deploymentGuide", costEstimation: "costEstimation",
+          projectTimeline: "projectTimeline", riskAnalysis: "riskAnalysis", finalMarkdown: "finalMarkdown",
         };
-        for (const msg of raw) {
-          if (msg.role === "assistant") {
-            try {
-              const p = JSON.parse(msg.content);
-              if (p.yaml) { latestResult = p; }
-              else if (p.artifact && p.content && latestResult) {
-                const key = singleKeyMap[p.artifact]; if (key) latestResult[key] = p.content;
-              }
-            } catch { }
+
+        const singleArtifactToStep: Record<string, Step> = {
+          config: "config", docker: "docker", markdown: "docs", folderStructure: "folder",
+          apiDesign: "apiDesign", testingPlan: "testingPlan", userStories: "userStories",
+          roadmap: "roadmap", deploymentGuide: "deploymentGuide", costEstimation: "costEstimation",
+          projectTimeline: "projectTimeline", riskAnalysis: "riskAnalysis", finalMarkdown: "finalMarkdown",
+          db: "db"
+        };
+
+        let latestResult: any = {};
+        for (const [key, artifact] of Object.entries(rawArtifacts) as [string, any][]) {
+          const mappedKey = singleArtifactToKey[key] || key;
+          if (key === 'db') {
+            try { latestResult.dbSchema = JSON.parse(artifact.content); } catch {}
+          } else {
+            latestResult[mappedKey] = artifact.content;
           }
         }
+
+        // Legacy extraction fallback for sessions without artifacts subcollection
+        if (Object.keys(latestResult).length === 0) {
+          for (const msg of raw) {
+            if (msg.role === "assistant") {
+              try {
+                const p = JSON.parse(msg.content);
+                if (p.yaml) { latestResult = { ...latestResult, ...p }; }
+                else if (p.artifact && p.content) {
+                  const key = singleArtifactToKey[p.artifact]; if (key) latestResult[key] = p.content;
+                }
+              } catch { }
+            }
+          }
+        }
+
         const historyMessages: Message[] = [];
         let localHasConfig = false;
+
         for (const msg of raw) {
           const ts = new Date(msg.createdAt?.toDate?.() || msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
           if (msg.role === "user") { historyMessages.push({ id: msg.id, role: "user", content: msg.content, timestamp: ts }); continue; }
+          
           let parsed: any = null;
           try { parsed = JSON.parse(msg.content); } catch { }
-          if (parsed?.artifact && parsed?.content && !parsed?.yaml) {
-            const singleArtifactToStep: Record<string, Step> = {
-              config: "config", docker: "docker", markdown: "docs", folderStructure: "folder",
-              apiDesign: "apiDesign", testingPlan: "testingPlan", userStories: "userStories",
-              deploymentGuide: "deploymentGuide", costEstimation: "costEstimation",
-              projectTimeline: "projectTimeline", riskAnalysis: "riskAnalysis", finalMarkdown: "finalMarkdown",
-            };
-            const singleArtifactToKey: Record<string, string> = {
-              config: "yaml", docker: "docker", markdown: "markdown", folderStructure: "folderStructure",
-              apiDesign: "apiDesign", testingPlan: "testingPlan", userStories: "userStories",
-              roadmap: "roadmap", deploymentGuide: "deploymentGuide", costEstimation: "costEstimation",
-              projectTimeline: "projectTimeline", riskAnalysis: "riskAnalysis", finalMarkdown: "finalMarkdown",
-            };
-            const step = singleArtifactToStep[parsed.artifact];
-            const dataKey = singleArtifactToKey[parsed.artifact];
-            if (step && dataKey) {
-              const syntheticData = { [dataKey]: parsed.content };
-              const { content, file, options } = buildAssistantMessage(step, syntheticData, false);
-              historyMessages.push({ id: msg.id, role: "assistant", content, timestamp: ts, file, options });
-              continue;
+
+          // LEGACY MESSAGE FORMAT
+          if (parsed && (parsed.yaml || parsed.artifact)) {
+            if (parsed.artifact && parsed.content && !parsed.yaml) {
+              const step = singleArtifactToStep[parsed.artifact];
+              const dataKey = singleArtifactToKey[parsed.artifact];
+              if (step && dataKey) {
+                const syntheticData = { [dataKey]: parsed.content };
+                const { content, file, options } = buildAssistantMessage(step, syntheticData, false);
+                historyMessages.push({ id: msg.id, role: "assistant", content, timestamp: ts, file, options });
+                continue;
+              }
             }
+            if (!parsed.yaml) { historyMessages.push({ id: msg.id, role: "assistant", content: msg.content, timestamp: ts }); continue; }
+            
+            const steps: Step[] = ["docs", "config", "docker", "apiDesign", "db", "folder", "testingPlan", "userStories", "roadmap", "deploymentGuide", "projectTimeline", "riskAnalysis", "finalMarkdown"];
+            const hasData = (s: Step) => {
+              switch (s) {
+                case "config": return !!parsed.yaml; case "docker": return !!parsed.docker;
+                case "docs": return !!parsed.markdown; case "folder": return !!parsed.folderStructure;
+                case "db": return !!parsed.dbSchema; case "apiDesign": return !!parsed.apiDesign;
+                case "testingPlan": return !!parsed.testingPlan; case "userStories": return !!parsed.userStories;
+                case "roadmap": return !!parsed.roadmap; case "deploymentGuide": return !!parsed.deploymentGuide;
+                case "projectTimeline": return !!parsed.projectTimeline; case "riskAnalysis": return !!parsed.riskAnalysis;
+                case "finalMarkdown": return !!parsed.finalMarkdown; default: return false;
+              }
+            };
+            for (const step of steps) {
+              if (!hasData(step)) continue;
+              const { content, file, options } = buildAssistantMessage(step, parsed, step === "docs" && !localHasConfig);
+              if (step === "config") localHasConfig = true;
+              historyMessages.push({ id: `${msg.id}-${step}`, role: "assistant", content, timestamp: ts, file, options });
+            }
+            continue;
           }
-          if (!parsed?.yaml) { historyMessages.push({ id: msg.id, role: "assistant", content: msg.content, timestamp: ts }); continue; }
-          const steps: Step[] = ["docs", "config", "docker", "apiDesign", "db", "folder", "testingPlan", "userStories", "roadmap", "deploymentGuide", "projectTimeline", "riskAnalysis", "finalMarkdown"];
-          const hasData = (s: Step) => {
-            switch (s) {
-              case "config": return !!parsed.yaml; case "docker": return !!parsed.docker;
-              case "docs": return !!parsed.markdown; case "folder": return !!parsed.folderStructure;
-              case "db": return !!parsed.dbSchema; case "apiDesign": return !!parsed.apiDesign;
-              case "testingPlan": return !!parsed.testingPlan; case "userStories": return !!parsed.userStories;
-              case "roadmap": return !!parsed.roadmap; case "deploymentGuide": return !!parsed.deploymentGuide;
-              case "projectTimeline": return !!parsed.projectTimeline; case "riskAnalysis": return !!parsed.riskAnalysis;
-              case "finalMarkdown": return !!parsed.finalMarkdown; default: return false;
+
+          // NEW MESSAGE FORMAT
+          if (msg.artifactType) {
+            if (msg.artifactType === 'initial') {
+              const { content: c1, file: f1, options: o1 } = buildAssistantMessage('docs', latestResult, !localHasConfig);
+              historyMessages.push({ id: `${msg.id}-docs`, role: "assistant", content: msg.content, timestamp: ts, file: f1, options: o1 });
+              
+              const { content: c2, file: f2, options: o2 } = buildAssistantMessage('config', latestResult, false);
+              localHasConfig = true;
+              historyMessages.push({ id: `${msg.id}-config`, role: "assistant", content: "System config generated.", timestamp: ts, file: f2, options: o2 });
+            } else {
+              const step = singleArtifactToStep[msg.artifactType];
+              if (step) {
+                const { file, options } = buildAssistantMessage(step, latestResult, false);
+                historyMessages.push({ id: msg.id, role: "assistant", content: msg.content, timestamp: ts, file, options });
+              } else {
+                historyMessages.push({ id: msg.id, role: "assistant", content: msg.content, timestamp: ts });
+              }
             }
-          };
-          for (const step of steps) {
-            if (!hasData(step)) continue;
-            const { content, file, options } = buildAssistantMessage(step, parsed, step === "docs" && !localHasConfig);
-            if (step === "config") localHasConfig = true;
-            historyMessages.push({ id: `${msg.id}-${step}`, role: "assistant", content, timestamp: ts, file, options });
+          } else {
+            historyMessages.push({ id: msg.id, role: "assistant", content: msg.content, timestamp: ts });
           }
         }
-        setMessages(historyMessages);
-        if (latestResult) { setGeneratedData(latestResult); setHasGeneratedConfig(true); }
+        
+        if (notionUrl || exportStatus) {
+          const finalMsg = historyMessages.find(m => m.id.includes('finalMarkdown') || (m.file && m.file.language === 'finalmarkdown'));
+          if (finalMsg) {
+            finalMsg.notionUrl = notionUrl;
+            finalMsg.exportStatus = exportStatus;
+          } else if (historyMessages.length > 0) {
+            historyMessages[historyMessages.length - 1].notionUrl = notionUrl;
+            historyMessages[historyMessages.length - 1].exportStatus = exportStatus;
+          }
+        }
+        
+        if (isMounted) {
+          setMessages(historyMessages);
+          if (Object.keys(latestResult).length > 0) { 
+            setGeneratedData(latestResult); 
+            setHasGeneratedConfig(true); 
+          }
+          
+          const isAwaitingAssistant = historyMessages.length > 0 && historyMessages[historyMessages.length - 1].role === 'user';
+          const isAwaitingNotion = Object.keys(latestResult).includes('finalMarkdown') && exportStatus === 'PENDING';
+          if (isAwaitingAssistant || isAwaitingNotion) {
+            pollingTimer = setTimeout(load, 3000);
+          }
+        }
       } catch (err) { console.error("Failed to load chat history:", err); }
     };
-    load();
+    
+    // Only clear on initial mount/session change
+    if (sessionId) {
+      setMessages([]); setGeneratedData(null); setHasGeneratedConfig(false);
+      load();
+    } else {
+      setMessages([]); setGeneratedData(null); setHasGeneratedConfig(false);
+    }
+    
+    return () => {
+      isMounted = false;
+      if (pollingTimer) clearTimeout(pollingTimer);
+    };
   }, [sessionId, isSignedIn]);
 
   const buildAssistantMessage = (step: Step, data: any, isFirstDocs: boolean): { content: string; file: Message["file"]; options: string[] } => {
@@ -353,12 +486,16 @@ export default function ChatPanel({
   };
 
   const handleSend = async (overrideInput?: string, forceArtifact?: ArtifactType) => {
-    if (!isSignedIn) { onShowLoginModal?.(true); return; }
+    const textToSend = (overrideInput ?? input).trim();
+    if (!isSignedIn) { 
+      if (textToSend) localStorage.setItem("pending_prompt", textToSend);
+      onShowLoginModal?.(true); 
+      return; 
+    }
     if (tokenQuota?.exhausted) {
       setMessages(prev => [...prev, { id: Date.now().toString(), role: "assistant", content: `Daily token limit reached.`, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
       return;
     }
-    const textToSend = (overrideInput ?? input).trim();
     if (!textToSend) return;
     let artifact: ArtifactType;
     let isModify = false;
@@ -371,6 +508,7 @@ export default function ChatPanel({
     setMessages(prev => [...prev, { id: Date.now().toString(), role: "user", content: textToSend, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
     if (!overrideInput) setInput("");
     setIsTyping(true);
+    setGeneratingArtifact(artifact);
     if (!overrideInput && textareaRef.current) textareaRef.current.style.height = "auto";
     setModifyMode(false); setModifyTargetArtifact(null);
     try {
@@ -407,11 +545,14 @@ export default function ChatPanel({
       const artifactToStep: Record<ArtifactType, Step> = { initial: "docs", config: "config", docker: "docker", markdown: "docs", folderStructure: "folder", apiDesign: "apiDesign", testingPlan: "testingPlan", userStories: "userStories", roadmap: "roadmap", deploymentGuide: "deploymentGuide", costEstimation: "costEstimation", projectTimeline: "projectTimeline", riskAnalysis: "riskAnalysis", finalMarkdown: "finalMarkdown", db: "db" };
       const step = artifactToStep[artifact] ?? "docs";
       const { content, file, options } = buildAssistantMessage(step, merged, !hasGeneratedConfig);
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), file, options }]);
+      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), file, options, notionUrl: data.notionUrl, exportStatus: data.exportStatus }]);
+      
+      // Dispatch event to tell sidebar to refresh its sessions list
+      window.dispatchEvent(new CustomEvent('refresh-sessions'));
     } catch (err) {
       console.error(err);
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: `Error: ${err instanceof Error ? err.message : "Execution failed."}`, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
-    } finally { setIsTyping(false); }
+    } finally { setIsTyping(false); setGeneratingArtifact(null); }
   };
 
   const handleOptionClick = (label: string) => {
@@ -423,7 +564,7 @@ export default function ChatPanel({
   };
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
-    if (textareaRef.current) { textareaRef.current.style.height = "auto"; textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`; }
+    if (textareaRef.current) { textareaRef.current.style.height = "0px"; textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`; }
   };
 
   const handleSuggestionClick = (prompt: string) => {
@@ -432,8 +573,8 @@ export default function ChatPanel({
       textareaRef.current.focus();
       setTimeout(() => {
         if (textareaRef.current) {
-          textareaRef.current.style.height = "auto";
-          textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+          textareaRef.current.style.height = "0px";
+          textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
         }
       }, 0);
     }
@@ -494,7 +635,11 @@ export default function ChatPanel({
       <div style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column", overflow: "hidden", zIndex: 1 }}>
 
         {/* Scrollable Area */}
-        <div style={{ flex: 1, overflowY: "auto", paddingBottom: messages.length === 0 ? "0" : "180px", display: "flex", flexDirection: "column" }}>
+        <div 
+          ref={scrollableRef}
+          onScroll={handleScroll}
+          style={{ flex: 1, overflowY: "auto", paddingBottom: "180px", display: "flex", flexDirection: "column" }}
+        >
 
           {/* ── Empty / Landing State (Functional Dashboard) ── */}
           {messages.length === 0 ? (
@@ -569,26 +714,14 @@ export default function ChatPanel({
                   />
                 </div>
 
-                {/* Input Area */}
-                <div style={{ width: "100%", animation: "slideUp 0.3s ease-out 0.3s both" }}>
-                  <div style={{ marginBottom: "12px", fontSize: "13px", fontWeight: 500, color: T.textMuted }}>Or start with your own product idea</div>
-                  <InputArea
-                    input={input}
-                    textareaRef={textareaRef}
-                    tokenQuota={tokenQuota}
-                    handleInputChange={handleInputChange}
-                    handleKeyDown={handleKeyDown}
-                    handleSend={handleSend}
-                    isTyping={isTyping}
-                  />
-                </div>
+
 
               </div>
             </div>
 
           ) : (
             /* ── Message list ── */
-            <div style={{ maxWidth: "760px", width: "100%", margin: "0 auto", padding: "64px 32px 0", display: "flex", flexDirection: "column" }}>
+            <div style={{ maxWidth: "1000px", width: "100%", margin: "0 auto", padding: "64px 32px 32px", display: "flex", flexDirection: "column" }}>
               {messages.map((msg, idx) => (
                 <div key={msg.id}
                   style={{ display: "flex", gap: "16px", padding: "24px 0", borderBottom: idx !== messages.length - 1 ? `1px solid ${T.border}` : "none", width: "100%" }}
@@ -641,7 +774,7 @@ export default function ChatPanel({
                       {msg.file && (
                         <div style={{ marginTop: "16px", border: `1px solid ${T.border}`, background: T.surface, borderRadius: "8px", overflow: "hidden" }}>
                           <FileHeader msg={msg} markdownMode={markdownMode} setMarkdownMode={setMarkdownMode} />
-                          <div style={{ padding: msg.file.language === "pipeline" || msg.file.language === "dbschema" || msg.file.language === "apidesign" || msg.file.language === "testingplan" ? "20px" : "16px", overflowX: "auto" }}>
+                          <div style={{ overflowX: "auto" }}>
                             <FileContentRenderer msg={msg} markdownMode={markdownMode} />
                           </div>
 
@@ -661,16 +794,32 @@ export default function ChatPanel({
                       )}
                     </div>
 
-                    {/* Option buttons */}
-                    {msg.options && msg.options.length > 0 && msg.role === "assistant" && (
-                      <div style={{ display: "flex", gap: "8px", marginTop: "16px", flexWrap: "wrap" }}>
-                        {msg.options.map((option, i) => {
+                    {/* Option buttons & Notion link */}
+                    {(msg.options && msg.options.length > 0 || msg.notionUrl || msg.exportStatus) && msg.role === "assistant" && (
+                      <div style={{ display: "flex", gap: "8px", marginTop: "16px", flexWrap: "wrap", alignItems: "center" }}>
+                        {msg.notionUrl && msg.exportStatus === 'SUCCESS' && (
+                          <a href={msg.notionUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                            <button
+                              style={{ padding: "6px 12px", background: T.accent, border: `1px solid ${T.accent}`, color: T.bg, fontSize: "12px", fontFamily: T.font, cursor: "pointer", transition: "all .15s", borderRadius: "6px", fontWeight: 500, display: "flex", alignItems: "center", gap: "6px" }}
+                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.9"; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; }}>
+                              📄 View Documentation
+                            </button>
+                          </a>
+                        )}
+                        {msg.exportStatus === 'FAILED' && (
+                          <div style={{ padding: "6px 12px", background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.3)", color: "#f87171", fontSize: "12px", fontFamily: T.font, borderRadius: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
+                            ⚠️ Documentation could not be exported to Notion.
+                          </div>
+                        )}
+                        {msg.options?.map((option, i) => {
                           const isClicked = messages.some(m => m.role === "user" && m.content === option);
+                          const isDisabled = isClicked || isTyping;
                           return (
-                            <button key={i} onClick={() => { if (!isClicked) handleOptionClick(option); }}
-                              style={{ padding: "6px 12px", background: isClicked ? "transparent" : T.surfaceHover, border: `1px solid ${isClicked ? T.border : T.borderHover}`, color: isClicked ? T.textHint : T.textMuted, fontSize: "12px", fontFamily: T.font, cursor: isClicked ? "default" : "pointer", transition: "all .15s", borderRadius: "6px", opacity: isClicked ? 0.5 : 1 }}
-                              onMouseEnter={e => { if (!isClicked) { (e.currentTarget as HTMLButtonElement).style.background = T.text; (e.currentTarget as HTMLButtonElement).style.color = T.bg; (e.currentTarget as HTMLButtonElement).style.borderColor = T.text; } }}
-                              onMouseLeave={e => { if (!isClicked) { (e.currentTarget as HTMLButtonElement).style.background = T.surfaceHover; (e.currentTarget as HTMLButtonElement).style.color = T.textMuted; (e.currentTarget as HTMLButtonElement).style.borderColor = T.borderHover; } }}>
+                            <button key={i} onClick={() => { if (!isDisabled) handleOptionClick(option); }}
+                              style={{ padding: "6px 12px", background: isClicked ? "transparent" : T.surfaceHover, border: `1px solid ${isClicked ? T.border : T.borderHover}`, color: isClicked ? T.textHint : T.textMuted, fontSize: "12px", fontFamily: T.font, cursor: isDisabled ? "default" : "pointer", transition: "all .15s", borderRadius: "6px", opacity: isDisabled ? 0.5 : 1 }}
+                              onMouseEnter={e => { if (!isDisabled) { (e.currentTarget as HTMLButtonElement).style.background = T.text; (e.currentTarget as HTMLButtonElement).style.color = T.bg; (e.currentTarget as HTMLButtonElement).style.borderColor = T.text; } }}
+                              onMouseLeave={e => { if (!isDisabled) { (e.currentTarget as HTMLButtonElement).style.background = T.surfaceHover; (e.currentTarget as HTMLButtonElement).style.color = T.textMuted; (e.currentTarget as HTMLButtonElement).style.borderColor = T.borderHover; } }}>
                               {option}
                             </button>
                           );
@@ -686,7 +835,7 @@ export default function ChatPanel({
                 <div style={{ display: "flex", gap: "16px", padding: "24px 0" }}>
                   <div style={{ width: "24px", height: "24px", borderRadius: "4px", flexShrink: 0, background: "#ffffff", color: "#000000", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 600, fontFamily: T.font }}>E</div>
                   <div style={{ display: "flex", alignItems: "center", height: "24px" }}>
-                    <TypingStatusText />
+                    <TypingStatusText artifact={generatingArtifact} />
                   </div>
                 </div>
               )}
@@ -696,17 +845,31 @@ export default function ChatPanel({
           )}
         </div>
 
-        {/* ── Fixed input area (Only mounts here when messages exist) ── */}
-        {messages.length > 0 && (
-          <div style={{
+        {/* Blur Backdrop */}
+        <div style={{
             position: "absolute",
             bottom: 0,
             left: 0,
             right: 0,
-            padding: "32px 32px 24px",
-            zIndex: 10,
-            background: "linear-gradient(180deg, rgba(9,9,11,0) 0%, rgba(9,9,11,0.9) 40%, #09090b 100%)",
+            height: "180px",
+            background: "linear-gradient(to top, rgba(9, 9, 11, 0.9) 20%, rgba(9, 9, 11, 0) 100%)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            maskImage: "linear-gradient(to top, black 40%, transparent 100%)",
+            WebkitMaskImage: "linear-gradient(to top, black 40%, transparent 100%)",
             pointerEvents: "none",
+            zIndex: 10,
+        }} />
+
+        {/* ── Fixed input area ── */}
+        <div style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: "0px 32px 32px",
+            pointerEvents: "none",
+            zIndex: 11,
           }}>
             <div style={{ width: "100%", maxWidth: "760px", margin: "0 auto", animation: "slideUp 0.3s ease-out", pointerEvents: "auto" }}>
 
@@ -730,6 +893,9 @@ export default function ChatPanel({
                 </div>
               )}
 
+              {messages.length === 0 && (
+                <div style={{ marginBottom: "12px", fontSize: "13px", fontWeight: 500, color: T.textMuted }}>Or start with your own product idea</div>
+              )}
               <InputArea
                 input={input}
                 textareaRef={textareaRef}
@@ -741,6 +907,38 @@ export default function ChatPanel({
               />
             </div>
           </div>
+
+        {/* Scroll Down Button */}
+        {showScrollDown && (
+          <button
+            onClick={scrollToBottom}
+            style={{
+              position: "absolute",
+              bottom: "120px", // Just above the gradient fade
+              right: "48px",
+              width: "40px",
+              height: "40px",
+              borderRadius: "50%",
+              background: T.surfaceHover,
+              border: `1px solid ${T.borderHover}`,
+              color: T.text,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+              zIndex: 20,
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "#ffffff"; e.currentTarget.style.color = "#000000"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.color = T.text; }}
+            aria-label="Scroll to bottom"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <polyline points="19 12 12 19 5 12"></polyline>
+            </svg>
+          </button>
         )}
       </div>
 

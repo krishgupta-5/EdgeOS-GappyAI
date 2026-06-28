@@ -103,7 +103,7 @@ export default function ChatSession() {
           }}
         >
           <Sidebar
-            activeAgentId={activeAgentId}
+            activeAgentId={sessionId}
             onSelectAgent={setActiveAgentId}
             isOpen={isSidebarOpen}
             onToggle={() => setIsSidebarOpen(!isSidebarOpen)}

@@ -9,6 +9,8 @@ interface DbSchemaViewerProps {
 
 type ViewMode = "diagram" | "source";
 
+
+
 export default function DbSchemaViewer({
   mermaid: mermaidSource,
 }: DbSchemaViewerProps) {
@@ -52,7 +54,7 @@ export default function DbSchemaViewer({
     
     return cleaned;
   });
-  
+
   let cleanSource = cleanedLines.join('\n');
 
   const processedMermaid = cleanSource.includes("direction")
@@ -89,10 +91,12 @@ export default function DbSchemaViewer({
           },
           er: {
             useMaxWidth: false,
-            diagramPadding: 80,
+            diagramPadding: 120,
             layoutDirection: "LR",
-            minEntityHeight: 30,
-            minEntityWidth: 160,
+            minEntityHeight: 32,
+            minEntityWidth: 200,
+            entityPadding: 15,
+            fontSize: 12,
           },
           fontFamily: '"Geist Mono", monospace',
         });
@@ -109,22 +113,29 @@ export default function DbSchemaViewer({
 
         if (svgEl) {
           const vb = svgEl.getAttribute("viewBox");
+          let vbX = 0, vbY = 0;
           if (vb) {
             const parts = vb.split(/[\s,]+/);
+            vbX = parseFloat(parts[0]) || 0;
+            vbY = parseFloat(parts[1]) || 0;
             width = parseFloat(parts[2]) || 0;
             height = parseFloat(parts[3]) || 0;
           }
-          if (width && height) {
-            svgEl.setAttribute("width", `${width}px`);
-            svgEl.setAttribute("height", `${height}px`);
-            svgEl.style.width = `${width}px`;
-            svgEl.style.height = `${height}px`;
-          }
+          // Expand viewBox by margin to prevent text clipping at edges
+          const margin = 80;
+          const newVB = `${vbX - margin} ${vbY - margin} ${width + margin * 2} ${height + margin * 2}`;
+          const totalW = width + margin * 2;
+          const totalH = height + margin * 2;
+          svgEl.setAttribute("viewBox", newVB);
+          svgEl.setAttribute("width", `${totalW}px`);
+          svgEl.setAttribute("height", `${totalH}px`);
+          svgEl.style.width = `${totalW}px`;
+          svgEl.style.height = `${totalH}px`;
           svgEl.style.maxWidth = "none";
           svgEl.style.maxHeight = "none";
           svgEl.style.overflow = "visible";
           setMermaidSvg(new XMLSerializer().serializeToString(svgEl));
-          setSvgDimensions({ width, height });
+          setSvgDimensions({ width: totalW, height: totalH });
         } else {
           setMermaidSvg(svg);
         }
@@ -172,21 +183,85 @@ export default function DbSchemaViewer({
     width: "100%",
     height: isExpanded ? "85vh" : "550px",
     overflow: "hidden",
-    clipPath: "inset(0)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#09090B", // Darker, cleaner background
-    // Subtle, elegant dotted background like Excalidraw/Figma
+    backgroundColor: "#09090B",
     backgroundImage: "radial-gradient(circle, #27272A 1px, transparent 1px)",
     backgroundSize: "24px 24px",
-    borderRadius: "12px", // Softer corners
-    border: "1px solid #27272A", // Brighter border for definition
-    transition: "height 0.3s cubic-bezier(0.4, 0, 0.2, 1)", // Smoother transition
+    borderRadius: "12px",
+    border: "1px solid #27272A",
+    transition: "height 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
     boxSizing: "border-box",
     position: "relative",
     zIndex: 1,
     cursor: mode === "source" ? "default" : isDragging ? "grabbing" : "grab",
+  };
+
+  // Format the mermaid source for the source view
+  const formatSource = (raw: string): React.ReactNode[] => {
+    // Reformat entity definitions to multi-line
+    let formatted = raw;
+    // Break entity blocks: ENTITY { ... } → multi-line
+    formatted = formatted.replace(/(\w+)\s*\{([^}]+)\}/g, (_match, name, body) => {
+      const attrs = body.trim().split(/\s+(?=\w+\s+\w+)/g).map((a: string) => a.trim()).filter((a: string) => a);
+      return `${name} {\n${attrs.map((a: string) => `    ${a}`).join('\n')}\n}`;
+    });
+
+    const lines = formatted.split('\n');
+    const kwColor = "#c678dd";
+    const entityColor = "#61afef";
+    const typeColor = "#d19a66";
+    const attrColor = "#e4e4e7";
+    const relColor = "#98c379";
+    const punctColor = "#abb2bf";
+    const commentColor = "#5c6370";
+
+    return lines.map((line, i) => {
+      const trimmed = line.trim();
+      let content: React.ReactNode;
+
+      if (trimmed === 'erDiagram' || trimmed.startsWith('direction')) {
+        content = <span style={{ color: kwColor, fontWeight: 600 }}>{line}</span>;
+      } else if (trimmed.match(/^\w+\s*\{$/)) {
+        // Entity opening: "USER {"
+        const name = trimmed.replace(/\s*\{$/, '');
+        const indent = line.match(/^\s*/)?.[0] || '';
+        content = <>{indent}<span style={{ color: entityColor, fontWeight: 600 }}>{name}</span> <span style={{ color: punctColor }}>{"{"}  </span></>;
+      } else if (trimmed === '}') {
+        const indent = line.match(/^\s*/)?.[0] || '';
+        content = <>{indent}<span style={{ color: punctColor }}>{"}"}</span></>;
+      } else if (trimmed.match(/^\w+\s+\w+/) && !trimmed.includes('||') && !trimmed.includes('{')) {
+        // Attribute line: "    string name"
+        const indent = line.match(/^\s*/)?.[0] || '';
+        const parts = trimmed.split(/\s+/);
+        content = <>{indent}<span style={{ color: typeColor }}>{parts[0]}</span> <span style={{ color: attrColor }}>{parts.slice(1).join(' ')}</span></>;
+      } else if (trimmed.match(/^\w+\s+[\|{}o\-\.]+\s+\w+\s*:/)) {
+        // Relationship line
+        const relMatch = trimmed.match(/^(\w+)\s+([\|{}o\-\.]+)\s+(\w+)\s*:\s*(.+)$/);
+        if (relMatch) {
+          const indent = line.match(/^\s*/)?.[0] || '';
+          content = <>{indent}<span style={{ color: entityColor }}>{relMatch[1]}</span> <span style={{ color: punctColor }}>{relMatch[2]}</span> <span style={{ color: entityColor }}>{relMatch[3]}</span> <span style={{ color: punctColor }}>:</span> <span style={{ color: relColor }}>{relMatch[4]}</span></>;
+        } else {
+          content = <span style={{ color: attrColor }}>{line}</span>;
+        }
+      } else if (trimmed.startsWith('%%') || trimmed.startsWith('#')) {
+        content = <span style={{ color: commentColor, fontStyle: 'italic' }}>{line}</span>;
+      } else if (!trimmed) {
+        content = '\u00A0';
+      } else {
+        content = <span style={{ color: attrColor }}>{line}</span>;
+      }
+
+      return (
+        <div key={i} style={{ display: 'flex', minHeight: '24px', lineHeight: '24px' }}>
+          <div style={{ width: '40px', flexShrink: 0, textAlign: 'right', paddingRight: '16px', color: '#3f3f46', userSelect: 'none', fontSize: '13px' }}>
+            {i + 1}
+          </div>
+          <div style={{ flex: 1 }}>{content}</div>
+        </div>
+      );
+    });
   };
 
   const renderContent = () => {
@@ -195,33 +270,33 @@ export default function DbSchemaViewer({
         <div
           style={{
             ...containerStyle,
-            backgroundColor: "#000000",
+            backgroundColor: "#0a0a0c",
             backgroundImage: "none",
             justifyContent: "flex-start",
-            alignItems: "flex-start",
-            padding: "24px",
+            alignItems: "stretch",
+            padding: "16px 0",
             overflow: "auto",
             flexDirection: "column",
           }}
         >
           {parseError && mode === "diagram" && (
-            <div style={{ color: "#ef4444", marginBottom: "16px", fontSize: "12px", fontFamily: '"Geist Mono", monospace' }}>
+            <div style={{ color: "#ef4444", marginBottom: "16px", padding: "0 20px", fontSize: "12px", fontFamily: '"Geist Mono", monospace' }}>
               <strong>Mermaid Parse Error:</strong><br/>
               {parseError.split('\n')[0]}<br/><br/>
               <em>Displaying raw ER text instead:</em>
             </div>
           )}
-          <pre
+          <div
             style={{
               margin: 0,
-              fontSize: "13px",
-              color: "#A78BFA",
-              fontFamily: '"Geist Mono",monospace',
-              whiteSpace: "pre-wrap",
+              fontSize: "14px",
+              fontFamily: '"Geist Mono", monospace',
+              fontWeight: 400,
+              whiteSpace: "pre",
             }}
           >
-            {processedMermaid}
-          </pre>
+            {formatSource(processedMermaid)}
+          </div>
         </div>
       );
     }
@@ -266,14 +341,17 @@ export default function DbSchemaViewer({
           dangerouslySetInnerHTML={{
             __html: `
           .mermaid-wrapper svg, [data-mermaid] svg { overflow: visible !important; }
-          /* Colored entities for better visual parsing */
-          text.er.entityName { fill: #60A5FA !important; font-size: 15px !important; font-weight: 700 !important; font-family: "Geist Mono", monospace !important; letter-spacing: 0.5px; }
-          /* Sleeker relationship lines */
-          path.er.relationshipLine { stroke: #52525B !important; stroke-width: 2px !important; }
-          /* Slightly brighter attributes */
-          text.er.attributeBox { font-size: 13px !important; fill: #A1A1AA !important; font-family: "Geist Mono", monospace !important; }
-          /* Box background tuning */
-          rect.er.entityBox { fill: #18181B !important; stroke: #27272A !important; stroke-width: 2px !important; rx: 4px !important; ry: 4px !important; }
+          .mermaid-wrapper svg text { dominant-baseline: central !important; }
+          /* Entity name styling */
+          text.er.entityName { fill: #60A5FA !important; font-size: 11px !important; font-weight: 700 !important; font-family: "Geist Mono", monospace !important; letter-spacing: 0.3px; text-transform: uppercase; }
+          /* Relationship lines */
+          path.er.relationshipLine { stroke: #52525B !important; stroke-width: 1.5px !important; }
+          /* Relationship labels */
+          .er.relationshipLabel text, text.er.relationshipLabel { fill: #A1A1AA !important; font-size: 10px !important; font-family: "Geist Mono", monospace !important; }
+          /* Attribute text — smaller to fit within boxes */
+          text.er.attributeBox { font-size: 11px !important; fill: #D4D4D8 !important; font-family: "Geist Mono", monospace !important; }
+          /* Entity boxes */
+          rect.er.entityBox { fill: #18181B !important; stroke: #3f3f46 !important; stroke-width: 1.5px !important; rx: 6px !important; ry: 6px !important; }
         `,
           }}
         />
