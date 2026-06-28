@@ -61,6 +61,38 @@ export async function loadProjectState(
       }
     }
 
+    // Fallback for legacy sessions where config/markdown were stored in messages instead of artifacts
+    if (!artifacts.config || !artifacts.markdown) {
+      const msgSnap = await db
+        .collection('sessions')
+        .doc(sessionId)
+        .collection('messages')
+        .where('role', '==', 'assistant')
+        .get();
+        
+      for (const msgDoc of msgSnap.docs) {
+        try {
+          const parsed = JSON.parse(msgDoc.data().content);
+          if (parsed.yaml && !artifacts.config) {
+            artifacts.config = {
+              content: parsed.yaml,
+              summary: '',
+              metadata: createDefaultMetadata('config')
+            };
+          }
+          if (parsed.markdown && !artifacts.markdown) {
+            artifacts.markdown = {
+              content: parsed.markdown,
+              summary: '',
+              metadata: createDefaultMetadata('markdown')
+            };
+          }
+        } catch {
+          // Ignore parse errors, just means it's not a legacy JSON message
+        }
+      }
+    }
+
     return {
       sessionId,
       userId: sessionData.userId ?? '',
@@ -73,6 +105,15 @@ export async function loadProjectState(
       updatedAt: sessionData.updatedAt?.toDate?.()?.toISOString() ?? new Date().toISOString(),
       totalTokensUsed: sessionData.totalTokensUsed ?? 0,
       errors: sessionData.errors ?? [],
+      conversationMode: sessionData.conversationMode,
+      projectSummary: sessionData.projectSummary,
+      artifactSummary: sessionData.artifactSummary,
+      conversationSummary: sessionData.conversationSummary,
+      lastConversationAt: sessionData.lastConversationAt,
+      pendingIntegrationUpdates: sessionData.pendingIntegrationUpdates,
+      githubUrl: sessionData.githubUrl,
+      notionUrl: sessionData.notionUrl,
+      jiraUrl: sessionData.jiraUrl,
     };
   } catch (err) {
     console.error(
@@ -100,25 +141,50 @@ export async function saveArtifact(
   summary?: string,
   metadata?: ArtifactMetadata,
   structuredData?: any,
+  reasonForChange?: string,
 ): Promise<void> {
+  const artifactRef = db
+    .collection('sessions')
+    .doc(sessionId)
+    .collection('artifacts')
+    .doc(artifactType);
+
+  const existingDoc = await artifactRef.get();
+  let currentVersion = 1;
+  let previousVersion: number | undefined = undefined;
+
+  if (existingDoc.exists) {
+    const existingData = existingDoc.data()!;
+    currentVersion = (existingData.currentVersion ?? 1) + 1;
+    previousVersion = existingData.currentVersion ?? 1;
+
+    // Save previous version to history
+    await artifactRef.collection('artifactHistory').add({
+      version: previousVersion,
+      generatedBy: existingData.metadata?.model ?? 'Gemini',
+      updatedAt: existingData.updatedAt ?? new Date(),
+      reasonForChange: existingData.reasonForChange ?? 'Initial generation',
+      content: existingData.content,
+      summary: existingData.summary ?? '',
+    });
+  }
+
   const docData: Record<string, any> = {
     type: artifactType,
     content,
     userId,
     updatedAt: new Date(),
+    currentVersion,
+    reasonForChange: reasonForChange ?? (currentVersion === 1 ? 'Initial generation' : 'Update'),
   };
 
   if (summary) docData.summary = summary;
   if (metadata) docData.metadata = metadata;
   if (structuredData !== undefined) docData.structuredData = structuredData;
+  if (previousVersion !== undefined) docData.previousVersion = previousVersion;
 
   // Write with deterministic ID (artifact type) for O(1) reads
-  await db
-    .collection('sessions')
-    .doc(sessionId)
-    .collection('artifacts')
-    .doc(artifactType)
-    .set(docData, { merge: true });
+  await artifactRef.set(docData, { merge: true });
 
   // Also write with auto-ID for backward compatibility with existing queries
   await db
@@ -187,6 +253,16 @@ export async function saveSessionMetadata(
     jiraUrl?: string;
     jiraProjectKey?: string;
     jiraExportStatus?: string;
+    conversationMode?: boolean;
+    projectSummary?: string;
+    artifactSummary?: string;
+    conversationSummary?: string;
+    lastConversationAt?: string;
+    pendingIntegrationUpdates?: {
+      github: boolean;
+      notion: boolean;
+      jira: boolean;
+    };
   },
 ): Promise<void> {
   const docData: Record<string, any> = {
@@ -207,6 +283,12 @@ export async function saveSessionMetadata(
   if (data.jiraUrl) docData.jiraUrl = data.jiraUrl;
   if (data.jiraProjectKey) docData.jiraProjectKey = data.jiraProjectKey;
   if (data.jiraExportStatus) docData.jiraExportStatus = data.jiraExportStatus;
+  if (data.conversationMode !== undefined) docData.conversationMode = data.conversationMode;
+  if (data.projectSummary) docData.projectSummary = data.projectSummary;
+  if (data.artifactSummary) docData.artifactSummary = data.artifactSummary;
+  if (data.conversationSummary) docData.conversationSummary = data.conversationSummary;
+  if (data.lastConversationAt) docData.lastConversationAt = data.lastConversationAt;
+  if (data.pendingIntegrationUpdates) docData.pendingIntegrationUpdates = data.pendingIntegrationUpdates;
 
   await db
     .collection('sessions')
@@ -249,15 +331,34 @@ export async function loadConfigArtifact(
         .sort((a, b) => b.time - a.time)[0];
       return latest?.content ?? null;
     }
-
+    
+    // Fallback: Check the legacy messages collection
+    const msgSnap = await db
+      .collection('sessions')
+      .doc(sessionId)
+      .collection('messages')
+      .where('role', '==', 'assistant')
+      .get();
+      
+    for (const msgDoc of msgSnap.docs) {
+      try {
+        const parsed = JSON.parse(msgDoc.data().content);
+        if (parsed.yaml) {
+          return parsed.yaml;
+        }
+      } catch {
+        // Ignore non-JSON messages
+      }
+    }
+    
     return null;
-  } catch (err) {
+  } catch (error) {
     console.error(
       JSON.stringify({
         level: 'error',
         msg: 'Failed to load config artifact',
         sessionId,
-        err: String(err),
+        err: String(error),
         ts: Date.now(),
       }),
     );

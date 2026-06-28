@@ -80,7 +80,9 @@ export async function GET(req: Request) {
       notionUrl: sessionData?.notionUrl, 
       exportStatus: sessionData?.exportStatus,
       githubUrl: sessionData?.githubUrl,
-      githubExportStatus: sessionData?.githubExportStatus
+      githubExportStatus: sessionData?.githubExportStatus,
+      conversationMode: sessionData?.conversationMode,
+      pendingIntegrationUpdates: sessionData?.pendingIntegrationUpdates,
     });
   } catch (error) {
     console.error("Failed to load chat history:", error);

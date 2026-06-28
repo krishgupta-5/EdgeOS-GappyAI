@@ -112,6 +112,31 @@ export interface GeneratedArtifact {
   metadata: ArtifactMetadata;
   /** Structured internal JSON data extracted from the LLM response */
   structuredData?: any;
+  /** Current version number */
+  currentVersion?: number;
+  /** Previous version number */
+  previousVersion?: number;
+  /** Reason for the most recent change */
+  reasonForChange?: string;
+}
+
+// ─────────────────────────────────────────────
+// Artifact History
+// ─────────────────────────────────────────────
+
+export interface ArtifactHistory {
+  /** Version number */
+  version: number;
+  /** Agent or system that generated it (e.g., 'Gemini', 'Groq') */
+  generatedBy: string;
+  /** Timestamp of update */
+  updatedAt: string;
+  /** Why it was changed */
+  reasonForChange: string;
+  /** Content of the old artifact */
+  content: string;
+  /** Summary of the old artifact */
+  summary: string;
 }
 
 // ─────────────────────────────────────────────
@@ -147,6 +172,26 @@ export interface ProjectState {
     error: string;
     timestamp: string;
   }>;
+  /** Is conversation mode active? */
+  conversationMode?: boolean;
+  /** High-level summary of the whole project */
+  projectSummary?: string;
+  /** Summary of all artifacts */
+  artifactSummary?: string;
+  /** Running summary of the follow-up conversation */
+  conversationSummary?: string;
+  /** Timestamp of the last conversation interaction */
+  lastConversationAt?: string;
+  /** Integrations that need updating */
+  pendingIntegrationUpdates?: {
+    github: boolean;
+    notion: boolean;
+    jira: boolean;
+  };
+  /** External integration URLs */
+  githubUrl?: string;
+  notionUrl?: string;
+  jiraUrl?: string;
 }
 
 // ─────────────────────────────────────────────

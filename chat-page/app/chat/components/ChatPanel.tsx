@@ -63,6 +63,8 @@ interface ChatPanelProps {
   sessionId?: string;
   showLoginModal?: boolean;
   onShowLoginModal?: (show: boolean) => void;
+  isSharedView?: boolean;
+  sharedData?: any;
 }
 
 type ArtifactType =
@@ -198,7 +200,7 @@ const TypingStatusText = ({ artifact, isExporting }: { artifact: string | null, 
 
 export default function ChatPanel({
   agentName, onToggleSidebar, isSidebarOpen = true,
-  sessionId, showLoginModal, onShowLoginModal,
+  sessionId, showLoginModal, onShowLoginModal, isSharedView, sharedData,
 }: ChatPanelProps) {
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
@@ -234,7 +236,7 @@ export default function ChatPanel({
     }
   }, [user]);
 
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<Message[]>(isSharedView ? (sharedData?.messages || []) : initialMessages);
   const [input, setInput] = useState(() => {
     if (typeof window !== "undefined") {
       const p = localStorage.getItem("pending_prompt");
@@ -249,10 +251,12 @@ export default function ChatPanel({
   const [isExporting, setIsExporting] = useState(false);
   const [generatingArtifact, setGeneratingArtifact] = useState<ArtifactType | null>(null);
   const [markdownMode, setMarkdownMode] = useState<Record<string, "code" | "preview">>({});
-  const [generatedData, setGeneratedData] = useState<any>(null);
+  const [generatedData, setGeneratedData] = useState<any>(isSharedView ? sharedData : null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [hasGeneratedConfig, setHasGeneratedConfig] = useState(false);
+  const [hasGeneratedConfig, setHasGeneratedConfig] = useState(isSharedView ? true : false);
+  const [conversationMode, setConversationMode] = useState(false);
+  const [pendingUpdates, setPendingUpdates] = useState<any>(null);
   const [modifyMode, setModifyMode] = useState(false);
   const [modifyTargetArtifact, setModifyTargetArtifact] = useState<ArtifactType | null>(null);
   const [tokenQuota, setTokenQuota] = useState<{
@@ -288,9 +292,8 @@ export default function ChatPanel({
   };
 
   useEffect(() => {
-    if (!isSignedIn) return;
+    if (!isSignedIn || isSharedView) return;
     fetch("/api/token-quota").then(r => r.ok ? r.json() : null).then(d => d && setTokenQuota(d));
-
     Promise.all([
       fetch("/api/integrations").then(res => res.json()).catch(() => ({})),
       fetch("/api/notion/pages").then(res => res.json()).catch(() => ({}))
@@ -301,7 +304,7 @@ export default function ChatPanel({
         notion: !!notion?.connected
       });
     });
-  }, [isSignedIn]);
+  }, [isSignedIn, isSharedView]);
 
   useEffect(() => {
     const handle = (e: MouseEvent) => {
@@ -328,7 +331,7 @@ export default function ChatPanel({
 
   // Listen to SSE Events
   useEffect(() => {
-    if (!sessionId) {
+    if (!sessionId || isSharedView) {
       setLiveEvents([]);
       return;
     }
@@ -350,7 +353,7 @@ export default function ChatPanel({
       eventSource.close();
     };
     return () => eventSource.close();
-  }, [sessionId]);
+  }, [sessionId, isSharedView]);
 
   // Load chat history
   useEffect(() => {
@@ -358,16 +361,30 @@ export default function ChatPanel({
     let pollingTimer: NodeJS.Timeout | null = null;
     
     const load = async () => {
-      if (!isSignedIn) return;
-      if (!sessionId) { 
+      if (!isSharedView && !isSignedIn) return;
+      if (!isSharedView && !sessionId) { 
         if (isMounted) { setMessages([]); setGeneratedData(null); setHasGeneratedConfig(false); }
         return; 
       }
       try {
-        const res = await fetch(`/api/chat-history?sessionId=${sessionId}`, { cache: "no-store" });
-        if (!res.ok) return;
-        const resData = await res.json();
-        const { messages: rawAll = [], artifacts: rawArtifacts = {}, notionUrl, exportStatus, githubUrl, githubExportStatus, jiraUrl, jiraExportStatus } = resData;
+        let resData: any;
+        if (isSharedView && sharedData) {
+          resData = sharedData;
+        } else {
+          const res = await fetch(`/api/chat-history?sessionId=${sessionId}`, { cache: "no-store" });
+          if (!res.ok) return;
+          resData = await res.json();
+        }
+        const { 
+          messages: rawAll = [], 
+          artifacts: rawArtifacts = {}, 
+          notionUrl, exportStatus, githubUrl, githubExportStatus, jiraUrl, jiraExportStatus,
+          conversationMode: apiConvMode, pendingIntegrationUpdates
+        } = resData;
+        
+        if (apiConvMode) setConversationMode(true);
+        if (pendingIntegrationUpdates) setPendingUpdates(pendingIntegrationUpdates);
+
         const raw: any[] = [];
         for (const msg of rawAll) {
           const prev = raw[raw.length - 1];
@@ -400,18 +417,18 @@ export default function ChatPanel({
           }
         }
 
-        // Legacy extraction fallback for sessions without artifacts subcollection
-        if (Object.keys(latestResult).length === 0) {
-          for (const msg of raw) {
-            if (msg.role === "assistant") {
-              try {
-                const p = JSON.parse(msg.content);
-                if (p.yaml) { latestResult = { ...latestResult, ...p }; }
-                else if (p.artifact && p.content) {
-                  const key = singleArtifactToKey[p.artifact]; if (key) latestResult[key] = p.content;
-                }
-              } catch { }
-            }
+        // Always run legacy extraction fallback to populate yaml/markdown for old sessions
+        // where they were not saved in the artifacts subcollection
+        for (const msg of raw) {
+          if (msg.role === "assistant") {
+            try {
+              const p = JSON.parse(msg.content);
+              if (p.yaml && !latestResult.yaml) { latestResult = { ...latestResult, yaml: p.yaml, markdown: p.markdown }; }
+              else if (p.artifact && p.content) {
+                const key = singleArtifactToKey[p.artifact]; 
+                if (key && !latestResult[key]) latestResult[key] = p.content;
+              }
+            } catch { }
           }
         }
 
@@ -507,6 +524,9 @@ export default function ChatPanel({
           if (Object.keys(latestResult).length > 0) { 
             setGeneratedData(latestResult); 
             setHasGeneratedConfig(true); 
+            if (latestResult.finalMarkdown) {
+              setConversationMode(true);
+            }
           }
           
           const isAwaitingAssistant = historyMessages.length > 0 && historyMessages[historyMessages.length - 1].role === 'user';
@@ -525,7 +545,7 @@ export default function ChatPanel({
     };
     
     // Only clear on initial mount/session change
-    if (sessionId) {
+    if (sessionId || isSharedView) {
       setMessages([]); setGeneratedData(null); setHasGeneratedConfig(false);
       load();
     } else {
@@ -536,7 +556,7 @@ export default function ChatPanel({
       isMounted = false;
       if (pollingTimer) clearTimeout(pollingTimer);
     };
-  }, [sessionId, isSignedIn]);
+  }, [sessionId, isSignedIn, isSharedView]);
 
   const buildAssistantMessage = (step: Step, data: any, isFirstDocs: boolean): { content: string; file: Message["file"]; options: string[] } => {
     switch (step) {
@@ -559,6 +579,7 @@ export default function ChatPanel({
   };
 
   const handleSend = async (overrideInput?: string, forceArtifact?: ArtifactType) => {
+    if (isSharedView) return;
     const textToSend = (overrideInput ?? input).trim();
     if (!isSignedIn) { 
       if (textToSend) localStorage.setItem("pending_prompt", textToSend);
@@ -578,6 +599,10 @@ export default function ChatPanel({
     else { artifact = "markdown"; isModify = false; }
     const currentSessionId = sessionId || getSessionId() || resetSessionId();
     if (!sessionId) { window.history.replaceState(null, "", `/chat/${currentSessionId}`); sessionStorage.setItem("edge-os-session-id", currentSessionId); }
+    
+    // Format chat history for /api/chat context
+    const chatHistory = messages.map(m => ({ role: m.role, content: m.content }));
+    
     setMessages(prev => [...prev, { id: Date.now().toString(), role: "user", content: textToSend, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
     if (!overrideInput) setInput("");
     setIsTyping(true);
@@ -585,7 +610,16 @@ export default function ChatPanel({
     if (!overrideInput && textareaRef.current) textareaRef.current.style.height = "auto";
     setModifyMode(false); setModifyTargetArtifact(null);
     try {
-      const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: textToSend, sessionId: currentSessionId, artifact, mode: isModify ? "modify" : "generate" }) });
+      const endpoint = conversationMode ? "/api/chat" : "/api/generate";
+      const payload = conversationMode 
+        ? { prompt: textToSend, sessionId: currentSessionId, history: chatHistory }
+        : { prompt: textToSend, sessionId: currentSessionId, artifact, mode: isModify ? "modify" : "generate" };
+
+      const res = await fetch(endpoint, { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify(payload) 
+      });
       if (!res.ok) {
         let errMsg = `API error: ${res.status}`;
         try { const errBody = await res.json(); if (errBody.error) errMsg = errBody.error; if (errBody.code) errMsg += ` [${errBody.code}]`; } catch {}
@@ -597,28 +631,51 @@ export default function ChatPanel({
       if (quotaRes.ok) {
         const fresh = await quotaRes.json(); setTokenQuota(fresh);
       }
+      
       let merged: any = generatedData ? { ...generatedData } : {};
-      if (data.artifact === "initial") { merged = { ...merged, yaml: data.yaml, markdown: data.markdown }; setHasGeneratedConfig(true); }
-      else if (isModify) {
-        merged = { ...merged, yaml: data.yaml };
-        const aMap: Record<string, string> = { docker: "docker", markdown: "markdown", folderStructure: "folderStructure", apiDesign: "apiDesign", testingPlan: "testingPlan", userStories: "userStories", costEstimation: "costEstimation", projectTimeline: "projectTimeline", riskAnalysis: "riskAnalysis", finalMarkdown: "finalMarkdown", config: "yaml" };
-        const key = aMap[data.artifact]; if (key) merged[key] = data.content;
-      } else {
-        switch (data.artifact) {
-          case "config": merged.yaml = data.content; break; case "docker": merged.docker = data.content; break;
-          case "markdown": merged.markdown = data.content; break; case "folderStructure": merged.folderStructure = data.content; break;
-          case "apiDesign": merged.apiDesign = data.content; break; case "testingPlan": merged.testingPlan = data.content; break;
-          case "userStories": merged.userStories = data.content; break; case "roadmap": merged.roadmap = data.content; break;
-          case "deploymentGuide": merged.deploymentGuide = data.content; break; case "costEstimation": merged.costEstimation = data.content; break;
-          case "projectTimeline": merged.projectTimeline = data.content; break; case "riskAnalysis": merged.riskAnalysis = data.content; break;
-          case "finalMarkdown": merged.finalMarkdown = data.content; break; case "db": merged.dbSchema = data.dbSchema; break;
+      
+      if (conversationMode) {
+        // Conversational Mode Response (Groq + Gemini if modified)
+        setMessages(prev => [...prev, { 
+          id: (Date.now() + 1).toString(), 
+          role: "assistant", 
+          content: data.content, 
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        }]);
+        
+        // If artifacts were modified, they are updated in the backend, but we don't fetch them all again right away.
+        // The SSE events would have fired, or we could just trigger a reload of history.
+        if (data.artifactsModified && data.artifactsModified.length > 0) {
+          // Add a minor delay then force a history reload to get the new artifact contents
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('refresh-sessions'));
+            // Could also trigger a local load() here but the useEffect does it when it needs to
+          }, 1000);
         }
+      } else {
+        // Legacy Generate Pipeline Response
+        if (data.artifact === "initial") { merged = { ...merged, yaml: data.yaml, markdown: data.markdown }; setHasGeneratedConfig(true); }
+        else if (isModify) {
+          merged = { ...merged, yaml: data.yaml };
+          const aMap: Record<string, string> = { docker: "docker", markdown: "markdown", folderStructure: "folderStructure", apiDesign: "apiDesign", testingPlan: "testingPlan", userStories: "userStories", costEstimation: "costEstimation", projectTimeline: "projectTimeline", riskAnalysis: "riskAnalysis", finalMarkdown: "finalMarkdown", config: "yaml" };
+          const key = aMap[data.artifact]; if (key) merged[key] = data.content;
+        } else {
+          switch (data.artifact) {
+            case "config": merged.yaml = data.content; break; case "docker": merged.docker = data.content; break;
+            case "markdown": merged.markdown = data.content; break; case "folderStructure": merged.folderStructure = data.content; break;
+            case "apiDesign": merged.apiDesign = data.content; break; case "testingPlan": merged.testingPlan = data.content; break;
+            case "userStories": merged.userStories = data.content; break; case "roadmap": merged.roadmap = data.content; break;
+            case "deploymentGuide": merged.deploymentGuide = data.content; break; case "costEstimation": merged.costEstimation = data.content; break;
+            case "projectTimeline": merged.projectTimeline = data.content; break; case "riskAnalysis": merged.riskAnalysis = data.content; break;
+            case "finalMarkdown": merged.finalMarkdown = data.content; break; case "db": merged.dbSchema = data.dbSchema; break;
+          }
+        }
+        setGeneratedData(merged);
+        const artifactToStep: Record<ArtifactType, Step> = { initial: "docs", config: "config", docker: "docker", markdown: "docs", folderStructure: "folder", apiDesign: "apiDesign", testingPlan: "testingPlan", userStories: "userStories", roadmap: "roadmap", deploymentGuide: "deploymentGuide", costEstimation: "costEstimation", projectTimeline: "projectTimeline", riskAnalysis: "riskAnalysis", finalMarkdown: "finalMarkdown", db: "db" };
+        const step = artifactToStep[artifact] ?? "docs";
+        const { content, file, options } = buildAssistantMessage(step, merged, !hasGeneratedConfig);
+        setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), file, options, notionUrl: data.notionUrl, exportStatus: data.exportStatus, githubUrl: data.githubUrl, githubExportStatus: data.githubExportStatus, jiraUrl: data.jiraUrl, jiraExportStatus: data.jiraExportStatus }]);
       }
-      setGeneratedData(merged);
-      const artifactToStep: Record<ArtifactType, Step> = { initial: "docs", config: "config", docker: "docker", markdown: "docs", folderStructure: "folder", apiDesign: "apiDesign", testingPlan: "testingPlan", userStories: "userStories", roadmap: "roadmap", deploymentGuide: "deploymentGuide", costEstimation: "costEstimation", projectTimeline: "projectTimeline", riskAnalysis: "riskAnalysis", finalMarkdown: "finalMarkdown", db: "db" };
-      const step = artifactToStep[artifact] ?? "docs";
-      const { content, file, options } = buildAssistantMessage(step, merged, !hasGeneratedConfig);
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), file, options, notionUrl: data.notionUrl, exportStatus: data.exportStatus, githubUrl: data.githubUrl, githubExportStatus: data.githubExportStatus, jiraUrl: data.jiraUrl, jiraExportStatus: data.jiraExportStatus }]);
       
       // Dispatch event to tell sidebar to refresh its sessions list
       window.dispatchEvent(new CustomEvent('refresh-sessions'));
@@ -854,7 +911,7 @@ export default function ChatPanel({
                           </div>
 
                           {/* Modify button */}
-                          {msg.role === "assistant" && msg.file.language !== "dbschema" && (
+                          {msg.role === "assistant" && msg.file.language !== "dbschema" && !isSharedView && (
                             <div style={{ padding: "8px 12px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "flex-end", background: T.surfaceHover }}>
                               <button
                                 onClick={() => { const target = LANG_TO_ARTIFACT[msg.file!.language] ?? "config"; setModifyMode(true); setModifyTargetArtifact(target); textareaRef.current?.focus(); }}
@@ -870,7 +927,7 @@ export default function ChatPanel({
                     </div>
 
                     {/* Option buttons */}
-                    {msg.options && msg.options.length > 0 && msg.role === "assistant" && (
+                    {msg.options && msg.options.length > 0 && msg.role === "assistant" && !isSharedView && (
                       <div style={{ display: "flex", gap: "8px", marginTop: "16px", flexWrap: "wrap", alignItems: "center" }}>
                         {msg.options?.map((option, i) => {
                           const isClicked = messages.some(m => m.role === "user" && m.content === option);
@@ -891,7 +948,7 @@ export default function ChatPanel({
               ))}
 
               {/* Typing indicator */}
-              {(isTyping || isExporting) && (
+              {!isSharedView && (isTyping || isExporting) && (
                 <div style={{ display: "flex", gap: "16px", padding: "24px 0" }}>
                   <div style={{ width: "24px", height: "24px", borderRadius: "4px", flexShrink: 0, background: "#ffffff", color: "#000000", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 600, fontFamily: T.font }}>E</div>
                   <div style={{ display: "flex", alignItems: "center", height: "24px" }}>
@@ -900,8 +957,13 @@ export default function ChatPanel({
                 </div>
               )}
 
+              {/* Live Timeline during generation/export */}
+              {!isSharedView && (isTyping || isExporting) && liveEvents.length > 0 && (
+                <LiveActivityTimeline events={liveEvents} />
+              )}
+
               {/* Integration Prompt Card (formerly Final Summary) after generation finishes */}
-              {!isTyping && !isExporting && messages.length > 0 && messages[messages.length - 1].role === "assistant" && generatedData?.finalMarkdown && (
+              {!isSharedView && !isTyping && !isExporting && messages.length > 0 && messages[messages.length - 1].role === "assistant" && generatedData?.finalMarkdown && (
                 <FinalSummaryCard 
                   events={liveEvents}
                   githubUrl={messages[messages.length - 1]?.githubUrl}
@@ -944,6 +1006,19 @@ export default function ChatPanel({
           }}>
             <div style={{ width: "100%", maxWidth: "760px", margin: "0 auto", animation: "slideUp 0.3s ease-out", pointerEvents: "auto" }}>
 
+              {/* Conversation Mode banner */}
+              {conversationMode && !modifyMode && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", padding: "8px 12px",
+                  border: `1px solid rgba(139, 92, 246, 0.3)`, borderRadius: "8px",
+                  background: "rgba(139, 92, 246, 0.05)",
+                }}>
+                  <div style={{ width: "6px", height: "6px", borderRadius: "3px", background: "#8b5cf6", flexShrink: 0, boxShadow: "0 0 8px #8b5cf6" }} />
+                  <span style={{ fontSize: "12px", fontFamily: T.font, color: "#8b5cf6", fontWeight: 600 }}>Project Ready</span>
+                  <span style={{ fontSize: "12px", fontFamily: T.font, color: T.textHint, flex: 1 }}>Continue refining or ask questions about your project</span>
+                </div>
+              )}
+
               {/* Modify mode banner */}
               {modifyMode && modifyTargetArtifact && (
                 <div style={{
@@ -967,15 +1042,21 @@ export default function ChatPanel({
               {messages.length === 0 && (
                 <div style={{ marginBottom: "12px", fontSize: "13px", fontWeight: 500, color: T.textMuted }}>Or start with your own product idea</div>
               )}
-              <InputArea
-                input={input}
-                textareaRef={textareaRef}
-                tokenQuota={tokenQuota}
-                handleInputChange={handleInputChange}
-                handleKeyDown={handleKeyDown}
-                handleSend={handleSend}
-                isTyping={isTyping || isExporting}
-              />
+              {isSharedView ? (
+                <div style={{ width: "100%", padding: "24px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: "16px", textAlign: "center", color: T.textMuted, fontSize: "14px", marginTop: "16px" }}>
+                  This is a shared EdgeOS conversation. Fork this project to continue working on it.
+                </div>
+              ) : (
+                <InputArea
+                  input={input}
+                  textareaRef={textareaRef}
+                  tokenQuota={tokenQuota}
+                  handleInputChange={handleInputChange}
+                  handleKeyDown={handleKeyDown}
+                  handleSend={handleSend}
+                  isTyping={isTyping || isExporting}
+                />
+              )}
             </div>
           </div>
 

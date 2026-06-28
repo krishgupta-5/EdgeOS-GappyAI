@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import ShareDialog from "./ShareDialog";
 import { CSSProperties } from "react";
 import { useUser, SignOutButton } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
@@ -152,11 +153,11 @@ function Toast({ message, onDone }: { message: string; onDone: () => void; }) {
   );
 }
 
-function SessionContextMenu({ visible, x, y, sessionId, sessionTitle, isPinned, onTogglePin, onRename, onExport, onDelete, menuRef }: {
+function SessionContextMenu({ visible, x, y, sessionId, sessionTitle, isPinned, onTogglePin, onRename, onShare, onDelete, menuRef }: {
   visible: boolean; x: number; y: number; sessionId: string; sessionTitle: string; isPinned: boolean;
   onTogglePin: (id: string) => void;
   onRename: (id: string, title: string) => void;
-  onExport: (id: string) => void;
+  onShare: (id: string) => void;
   onDelete: (id: string) => void;
   menuRef: React.RefObject<HTMLDivElement | null>;
 }) {
@@ -174,10 +175,10 @@ function SessionContextMenu({ visible, x, y, sessionId, sessionTitle, isPinned, 
         onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.textMuted; }}>
         Edit
       </button>
-      <button onClick={() => onExport(sessionId)} style={btn}
+      <button onClick={() => onShare(sessionId)} style={btn}
         onMouseEnter={e => { e.currentTarget.style.background = T.surfaceHover; e.currentTarget.style.color = T.text; }}
         onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = T.textMuted; }}>
-        Export Document
+        Share Chat
       </button>
       <div style={{ height: "1px", background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
       <button onClick={() => onDelete(sessionId)} style={{ ...btn, color: "#ef4444" }}
@@ -237,8 +238,8 @@ function SidebarLink({ icon, label, onClick, isOpen, isHighlight, className }: {
   );
 }
 
-function HistoryItem({ sessionId, title, isOpen, active = false, isPinned = false, onNavigate, onOptionsClick, onTogglePin }: {
-  sessionId: string; title: string; isOpen: boolean; active?: boolean; isPinned?: boolean;
+function HistoryItem({ sessionId, title, isOpen, active = false, isPinned = false, isShared = false, onNavigate, onOptionsClick, onTogglePin }: {
+  sessionId: string; title: string; isOpen: boolean; active?: boolean; isPinned?: boolean; isShared?: boolean;
   onNavigate?: (id: string) => void;
   onOptionsClick?: (e: React.MouseEvent, id: string, title: string) => void;
   onTogglePin?: (e: React.MouseEvent, id: string) => void;
@@ -364,7 +365,7 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
     }
   }, [user, isLoaded, isSignedIn]);
 
-  const [userSessions, setUserSessions] = useState<Array<{ sessionId: string; updatedAt: Date | string; messageCount: number; lastMessage?: string; }>>([]);
+  const [userSessions, setUserSessions] = useState<Array<{ sessionId: string; updatedAt: Date | string; messageCount: number; lastMessage?: string; isShared?: boolean; shareId?: string; }>>([]);
   const [loading, setLoading] = useState(false);
   const [renameModal, setRenameModal] = useState<{ sessionId: string; currentTitle: string } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -373,6 +374,7 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isPinnedCollapsed, setIsPinnedCollapsed] = useState(false);
   const [isRecentCollapsed, setIsRecentCollapsed] = useState(false);
+  const [shareDialog, setShareDialog] = useState<{ sessionId: string; shareUrl?: string; shareId?: string; loading?: boolean } | null>(null);
   const expanded = isOpen || profileMenuOpen || (contextMenu !== null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -430,27 +432,52 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
   const handleRenameSession = (id: string, title: string) => { setContextMenu(null); setRenameModal({ sessionId: id, currentTitle: title }); };
 
   const handleRenameSave = async (id: string, newTitle: string) => {
-    setRenameModal(null);
     try {
-      const r = await fetch(`/api/sessions/${id}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: newTitle }) });
-      if (r.ok) { setUserSessions(p => p.map(s => s.sessionId === id ? { ...s, lastMessage: newTitle } : s)); setToast("Renamed successfully"); }
+      const r = await fetch(`/api/sessions/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: newTitle }), credentials: "include" });
+      if (r.ok) { setUserSessions(p => p.map(s => s.sessionId === id ? { ...s, lastMessage: newTitle } : s)); setToast("Project renamed"); }
       else setToast("Rename failed");
     } catch { setToast("Rename failed"); }
+    setRenameModal(null);
   };
 
-  const handleExportSession = async (id: string) => {
+  const handleShareClick = async (sessionId: string) => {
     setContextMenu(null);
+    setShareDialog({ sessionId, loading: true });
     try {
-      const r = await fetch(`/api/sessions/${id}/export`, { credentials: "include" });
-      if (r.ok) {
-        const data = await r.json();
-        const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
-        const a = document.createElement("a"); a.href = url; a.download = `project-${id}.json`;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-        setToast("Document Exported");
-      } else setToast("Export failed");
-    } catch { setToast("Export failed"); }
+      const res = await fetch("/api/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId })
+      });
+      if (!res.ok) throw new Error("Failed to share");
+      const data = await res.json();
+      const shareUrl = `${window.location.origin}${data.shareUrl}`;
+      navigator.clipboard.writeText(shareUrl);
+      setShareDialog({ sessionId, shareUrl, shareId: data.shareId, loading: false });
+      setToast("Share link copied successfully.");
+      
+      setUserSessions(p => p.map(s => s.sessionId === sessionId ? { ...s, isShared: true, shareId: data.shareId } : s));
+    } catch (e) {
+      console.error(e);
+      setToast("Failed to create share link");
+      setShareDialog(null);
+    }
   };
+
+  const handleDeleteShare = async (shareId: string, sessionId: string) => {
+    try {
+      const res = await fetch(`/api/share/${shareId}/delete`, { method: "POST" });
+      if (res.ok) {
+        setToast("Share deleted");
+        setShareDialog(null);
+        setUserSessions(p => p.map(s => s.sessionId === sessionId ? { ...s, isShared: false, shareId: undefined } : s));
+      } else {
+        setToast("Failed to delete share");
+      }
+    } catch (e) {
+      setToast("Failed to delete share");
+    }
+  }; 
 
   const handleNewChat = () => {
     if (!isSignedIn) { onShowLoginModal?.(true); return; }
@@ -468,12 +495,21 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
       {renameModal && <RenameModal currentTitle={renameModal.currentTitle} onSave={v => handleRenameSave(renameModal.sessionId, v)} onCancel={() => setRenameModal(null)} />}
       {isSearchModalOpen && <SearchModal userSessions={userSessions} onClose={() => setIsSearchModalOpen(false)} onNavigate={id => router.push(`/chat/${id}`)} leftOffset={isOpen ? sidebarWidth : 68} />}
       {toast && <Toast message={toast} onDone={() => setToast(null)} />}
+      {shareDialog && <ShareDialog {...shareDialog} onClose={() => setShareDialog(null)} onDelete={handleDeleteShare} />}
 
-      <SessionContextMenu visible={contextMenu?.visible ?? false} x={contextMenu?.x ?? 0} y={contextMenu?.y ?? 0}
-        sessionId={contextMenu?.sessionId ?? ""} sessionTitle={contextMenu?.sessionTitle ?? ""}
-        isPinned={contextMenu ? pinnedSessions.includes(contextMenu.sessionId) : false}
-        onTogglePin={handleTogglePin}
-        onRename={handleRenameSession} onExport={handleExportSession} onDelete={handleDeleteSession} menuRef={contextMenuRef} />
+      <SessionContextMenu 
+            visible={contextMenu !== null} 
+            x={contextMenu?.x || 0} 
+            y={contextMenu?.y || 0} 
+            sessionId={contextMenu?.sessionId || ""} 
+            sessionTitle={contextMenu?.sessionTitle || ""}
+            isPinned={pinnedSessions.includes(contextMenu?.sessionId || "")}
+            onTogglePin={handleTogglePin}
+            onRename={handleRenameSession}
+            onShare={handleShareClick}
+            onDelete={handleDeleteSession}
+            menuRef={contextMenuRef}
+          />
 
       <motion.aside
         className={satoshi.variable}
@@ -529,7 +565,7 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
 
         {/* 3. History List */}
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "0 14px", marginTop: "24px", width: "100%" }}>
-          {loading ? (
+          {loading && userSessions.length === 0 ? (
             <AnimatePresence>
               {expanded && <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} style={{ padding: "16px 10px", color: T.textHint, fontSize: "13px", fontFamily: T.font }}>Loading...</motion.div>}
             </AnimatePresence>
@@ -563,6 +599,7 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
                             isOpen={expanded}
                             active={activeAgentId === s.sessionId}
                             isPinned={true}
+                            isShared={s.isShared}
                             onNavigate={id => router.push(`/chat/${id}`)}
                             onOptionsClick={(e, id, title) => { e.preventDefault(); const { x, y } = clampPos(e.clientX, e.clientY); setContextMenu({ visible: true, x, y, sessionId: id, sessionTitle: title }); }} 
                             onTogglePin={(e, id) => { e.preventDefault(); handleTogglePin(id); }}
@@ -598,6 +635,7 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
                             isOpen={expanded}
                             active={activeAgentId === s.sessionId}
                             isPinned={false}
+                            isShared={s.isShared}
                             onNavigate={id => router.push(`/chat/${id}`)}
                             onOptionsClick={(e, id, title) => { e.preventDefault(); const { x, y } = clampPos(e.clientX, e.clientY); setContextMenu({ visible: true, x, y, sessionId: id, sessionTitle: title }); }} 
                             onTogglePin={(e, id) => { e.preventDefault(); handleTogglePin(id); }}
