@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import MarkdownRenderer from "@/app/chat/components/MarkdownRenderer";
 
 interface TestingPlanViewerProps {
   content: string;
@@ -44,10 +45,8 @@ export default function TestingPlanViewer({ content }: TestingPlanViewerProps) {
   // Fallback for raw/unparseable text
   if (sections.length === 0) {
     return (
-      <div style={{ padding: "16px 0", color: "#D4D4D8", fontFamily: '"Geist Mono", monospace', fontSize: "14px", lineHeight: "1.6" }}>
-        <pre style={{ margin: 0, whiteSpace: "pre-wrap" }}>
-          {content}
-        </pre>
+      <div style={{ padding: "16px 20px", color: "#D4D4D8", fontFamily: '"Geist Mono", monospace', fontSize: "14px", lineHeight: "1.6" }}>
+        <MarkdownRenderer content={content} />
       </div>
     );
   }

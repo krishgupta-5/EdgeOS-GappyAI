@@ -47,7 +47,7 @@ export default function PrivacyPolicy() {
   const scrollTo = (id: string) => {
     setActiveSection(id);
     isClickScrolling.current = true;
-    
+
     const element = document.getElementById(id);
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -133,19 +133,18 @@ export default function PrivacyPolicy() {
             <div style={{ fontSize: "11px", color: T.textHint, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "12px", paddingLeft: "12px", fontWeight: 600 }}>
               Contents
             </div>
-            
+
             <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: "2px" }}>
               {/* Sliding Highlighter */}
               <div style={{
                 position: "absolute", left: 0, right: 0, height: "35px",
                 background: T.surfaceHover, borderRadius: "6px", zIndex: 0,
                 transition: "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-                transform: `translateY(${
-                  activeSection === "introduction" ? 0 :
-                  activeSection === "information" ? 37 :
-                  activeSection === "security" ? 74 :
-                  activeSection === "contact" ? 111 : 0
-                }px)`
+                transform: `translateY(${activeSection === "introduction" ? 0 :
+                    activeSection === "information" ? 37 :
+                      activeSection === "security" ? 74 :
+                        activeSection === "contact" ? 111 : 0
+                  }px)`
               }} />
 
               <NavButton active={activeSection === "introduction"} onClick={() => scrollTo("introduction")} label="1. Introduction" />
@@ -209,7 +208,7 @@ export default function PrivacyPolicy() {
                   borderRadius: "6px", border: `1px solid ${T.border}`, fontFamily: "Consolas, 'Courier New', monospace",
                   fontSize: "13px", color: T.text, display: "inline-block"
                 }}>
-                  privacy@ProdMate.com
+                  privacy@prodmate.dev
                 </div>
               </PolicySection>
             </div>

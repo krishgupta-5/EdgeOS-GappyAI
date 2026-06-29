@@ -101,7 +101,7 @@ export default function Home() {
                       Instead of a flat background, we wrap the ChatPanel in a "Widget Card"
                       just like the Analytics/Performance cards in your screenshot. 
                     */}
-          <main className="flex-1 flex flex-col h-full w-full relative overflow-hidden bg-background">
+          <main className="flex-1 flex flex-col h-full w-full relative overflow-hidden bg-transparent">
             <ChatPanel
               agentName={agentNames[activeAgentId]}
               showLoginModal={showLoginModal}

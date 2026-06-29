@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { UserCircleIcon } from "hugeicons-react";
 import { satoshi } from "@/constants";
 import { getSessionId, resetSessionId } from "@/lib/sessionId";
 import DbSchemaViewer from "@/app/chat/components/DbSchemaViewer";
@@ -20,6 +21,12 @@ import FinalSummaryCard from "@/app/chat/components/FinalSummaryCard";
 import EmailPreviewCard from "@/app/chat/components/EmailPreviewCard";
 import MeetingPreviewCard from "@/app/chat/components/MeetingPreviewCard";
 import type { ProgressEvent, EmailPreview, MeetingPreview } from "@/lib/pipeline/types";
+
+const AppIcon = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 196 196" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path fillRule="evenodd" clipRule="evenodd" d="M73.9216 7.17157V38.2486C73.9216 38.519 74.0311 38.7779 74.2251 38.9662L90.3396 54.6067C90.7128 54.969 91.2125 55.1716 91.7326 55.1716H104.093C104.624 55.1716 105.132 54.9609 105.507 54.5858L121.129 38.9645C121.316 38.7769 121.422 38.5226 121.422 38.2574V7.17157L114.836 0.585786C114.055 -0.195263 112.788 -0.195261 112.007 0.585787L105.422 7.17157V37.6716C105.422 38.2239 104.974 38.6716 104.422 38.6716H90.9216C90.3693 38.6716 89.9216 38.2239 89.9216 37.6716V7.17157L83.3358 0.585786C82.5547 -0.195263 81.2884 -0.195261 80.5074 0.585787L73.9216 7.17157ZM7.17158 121.422H38.2486C38.519 121.422 38.7779 121.312 38.9662 121.118L54.6067 105.004C54.969 104.63 55.1716 104.131 55.1716 103.611V91.25C55.1716 90.7196 54.9609 90.2109 54.5858 89.8358L38.9645 74.2145C38.7769 74.0269 38.5226 73.9216 38.2574 73.9216H7.17157L0.585786 80.5074C-0.195263 81.2884 -0.195261 82.5547 0.585787 83.3358L7.17157 89.9216H37.6716C38.2239 89.9216 38.6716 90.3693 38.6716 90.9216V104.422C38.6716 104.974 38.2239 105.422 37.6716 105.422H7.17157L0.585787 112.007C-0.195261 112.788 -0.19526 114.055 0.585789 114.836L7.17158 121.422ZM38.8598 72.4469L16.8851 50.4722V41.1585C16.8851 40.0539 17.7805 39.1585 18.8851 39.1585H28.1988L49.7655 60.7252C50.1561 61.1157 50.7892 61.1157 51.1798 60.7252L60.7257 51.1793C61.1162 50.7887 61.1162 50.1556 60.7257 49.7651L39.1589 28.1983V18.8846C39.1589 17.78 40.0544 16.8846 41.1589 16.8846H50.4726L72.4536 38.8656C72.6411 39.0531 72.7465 39.3075 72.7465 39.5727V61.6646C72.7465 62.195 72.5358 62.7037 72.1607 63.0788L63.4205 71.819C63.0527 72.1868 62.5561 72.3968 62.0361 72.4046L39.5819 72.7397C39.3115 72.7438 39.051 72.6381 38.8598 72.4469ZM145.565 16.8284L123.591 38.8032C123.4 38.9944 123.294 39.2549 123.298 39.5252L123.633 61.9795C123.641 62.4995 123.851 62.9961 124.219 63.3638L132.959 72.1041C133.334 72.4791 133.843 72.6899 134.373 72.6899H156.465C156.73 72.6899 156.985 72.5845 157.172 72.397L179.153 50.416V41.1023C179.153 39.9977 178.258 39.1023 177.153 39.1023H167.839L146.273 60.669C145.882 61.0596 145.249 61.0596 144.858 60.669L135.312 51.1231C134.922 50.7326 134.922 50.0994 135.312 49.7089L156.879 28.1421V18.8284C156.879 17.7239 155.984 16.8284 154.879 16.8284L145.565 16.8284ZM121.422 157.095V188.172L114.836 194.757C114.055 195.538 112.788 195.538 112.007 194.757L105.422 188.172V157.672C105.422 157.119 104.974 156.672 104.422 156.672H90.9216C90.3693 156.672 89.9216 157.119 89.9216 157.672V188.172L83.3358 194.757C82.5547 195.538 81.2884 195.538 80.5074 194.757L73.9216 188.172V157.086C73.9216 156.821 74.0269 156.566 74.2145 156.379L89.8358 140.757C90.2109 140.382 90.7196 140.172 91.25 140.172H103.611C104.131 140.172 104.63 140.374 105.004 140.736L121.118 156.377C121.312 156.565 121.422 156.824 121.422 157.095ZM188.172 73.9216H157.095C156.824 73.9216 156.565 74.0311 156.377 74.2251L140.736 90.3396C140.374 90.7128 140.172 91.2125 140.172 91.7326V104.093C140.172 104.624 140.382 105.132 140.757 105.507L156.379 121.129C156.566 121.316 156.821 121.422 157.086 121.422H188.172L194.757 114.836C195.538 114.055 195.538 112.788 194.757 112.007L188.172 105.422H157.672C157.119 105.422 156.672 104.974 156.672 104.422V90.9216C156.672 90.3693 157.119 89.9216 157.672 89.9216H188.172L194.757 83.3358C195.538 82.5547 195.538 81.2884 194.757 80.5074L188.172 73.9216ZM156.483 122.896L178.458 144.871V154.185C178.458 155.289 177.563 156.185 176.458 156.185H167.144L145.578 134.618C145.187 134.227 144.554 134.227 144.163 134.618L134.617 144.164C134.227 144.554 134.227 145.188 134.617 145.578L156.184 167.145V176.459C156.184 177.563 155.289 178.459 154.184 178.459H144.871L122.89 156.478C122.702 156.29 122.597 156.036 122.597 155.77V133.679C122.597 133.148 122.807 132.639 123.182 132.264L131.923 123.524C132.29 123.156 132.787 122.946 133.307 122.939L155.761 122.603C156.032 122.599 156.292 122.705 156.483 122.896ZM51.1663 178.401L73.1411 156.427C73.3323 156.235 73.4379 155.975 73.4339 155.705L73.0987 133.25C73.091 132.73 72.8809 132.234 72.5132 131.866L63.7729 123.126C63.3979 122.751 62.8892 122.54 62.3587 122.54H40.2668C40.0016 122.54 39.7473 122.645 39.5597 122.833L17.5788 144.814L17.5788 154.128C17.5788 155.232 18.4742 156.128 19.5788 156.128H28.8925L50.4592 134.561C50.8497 134.17 51.4829 134.17 51.8734 134.561L61.4194 144.107C61.8099 144.497 61.8099 145.13 61.4194 145.521L39.8526 167.088V176.401C39.8526 177.506 40.748 178.401 41.8526 178.401H51.1663Z" fill="currentColor" />
+  </svg>
+);
 
 // ── ProdMate Design Tokens (ProdMate Minimal Palette) ──────────
 const T = {
@@ -152,6 +159,13 @@ const aiPhrases = [
   "Finalizing output...",
 ];
 
+const generalPhrases = [
+  "Analyzing request...",
+  "Gathering thoughts...",
+  "Formulating response...",
+  "Writing...",
+];
+
 const exportPhrases = [
   "Syncing with integrations...",
   "Exporting to GitHub...",
@@ -161,8 +175,15 @@ const exportPhrases = [
 
 const TypingStatusText = ({ artifact, isExporting }: { artifact: string | null, isExporting?: boolean }) => {
   const [idx, setIdx] = useState(0);
-  const phrases = isExporting ? exportPhrases : aiPhrases;
-  
+
+  // Decide which phrases to use based on mode
+  let phrases = aiPhrases;
+  if (isExporting) {
+    phrases = exportPhrases;
+  } else if (!artifact) {
+    phrases = generalPhrases;
+  }
+
   useEffect(() => {
     const interval = setInterval(() => {
       setIdx((prev) => (prev + 1) % phrases.length);
@@ -188,12 +209,13 @@ const TypingStatusText = ({ artifact, isExporting }: { artifact: string | null, 
     db: "Database Schema",
   };
 
+  const isGeneral = !artifact && !isExporting;
   const artifactName = artifact ? (artifactMap[artifact] || "Artifacts") : "Response";
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
       <span style={{ fontSize: "13px", fontWeight: 600, color: "#ffffff", fontFamily: T.font, letterSpacing: "0.02em" }}>
-        {isExporting ? "Exporting Project" : `Generating ${artifactName}`}
+        {isExporting ? "Exporting Project" : (isGeneral ? "Thinking..." : `Generating ${artifactName}`)}
       </span>
       <span style={{ fontSize: "13px", color: T.textHint, fontFamily: T.font, animation: "typingFade 2s infinite" }}>
         {phrases[idx]}
@@ -230,7 +252,7 @@ export default function ChatPanel({
       setCachedImageUrl(user.imageUrl);
       localStorage.setItem("ProdMate-user-image", user.imageUrl);
     }
-    
+
     if (user?.firstName || user?.primaryEmailAddress?.emailAddress) {
       const name = user.firstName
         ? `${user.firstName}${user.lastName ? " " + user.lastName : ""}`
@@ -280,13 +302,14 @@ export default function ChatPanel({
     notion: boolean;
     jira: boolean;
   }>({ github: false, notion: false, jira: false });
+  const [isInitialLoading, setIsInitialLoading] = useState(!!sessionId && !isSharedView);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  
-  useEffect(() => { 
+
+  useEffect(() => {
     // Only auto-scroll if we are already at the bottom, or if AI is typing.
     // If user explicitly scrolled up, don't force them down unless it's a new generation.
-    scrollToBottom(); 
+    scrollToBottom();
   }, [messages.length, isTyping]);
 
   const handleScroll = () => {
@@ -363,12 +386,12 @@ export default function ChatPanel({
   useEffect(() => {
     let isMounted = true;
     let pollingTimer: NodeJS.Timeout | null = null;
-    
+
     const load = async () => {
       if (!isSharedView && !isSignedIn) return;
-      if (!isSharedView && !sessionId) { 
+      if (!isSharedView && !sessionId) {
         if (isMounted) { setMessages([]); setGeneratedData(null); setHasGeneratedConfig(false); }
-        return; 
+        return;
       }
       try {
         let resData: any;
@@ -379,13 +402,13 @@ export default function ChatPanel({
           if (!res.ok) return;
           resData = await res.json();
         }
-        const { 
-          messages: rawAll = [], 
-          artifacts: rawArtifacts = {}, 
+        const {
+          messages: rawAll = [],
+          artifacts: rawArtifacts = {},
           notionUrl, exportStatus, githubUrl, githubExportStatus, jiraUrl, jiraExportStatus,
           conversationMode: apiConvMode, pendingIntegrationUpdates
         } = resData;
-        
+
         if (apiConvMode) setConversationMode(true);
         if (pendingIntegrationUpdates) setPendingUpdates(pendingIntegrationUpdates);
 
@@ -415,7 +438,7 @@ export default function ChatPanel({
         for (const [key, artifact] of Object.entries(rawArtifacts) as [string, any][]) {
           const mappedKey = singleArtifactToKey[key] || key;
           if (key === 'db' || key === 'dbSchema') {
-            try { latestResult.dbSchema = JSON.parse(artifact.content); } catch {}
+            try { latestResult.dbSchema = JSON.parse(artifact.content); } catch { }
           } else {
             latestResult[mappedKey] = artifact.content;
           }
@@ -429,7 +452,7 @@ export default function ChatPanel({
               const p = JSON.parse(msg.content);
               if (p.yaml && !latestResult.yaml) { latestResult = { ...latestResult, yaml: p.yaml, markdown: p.markdown }; }
               else if (p.artifact && p.content) {
-                const key = singleArtifactToKey[p.artifact]; 
+                const key = singleArtifactToKey[p.artifact];
                 if (key && !latestResult[key]) latestResult[key] = p.content;
               }
             } catch { }
@@ -442,7 +465,7 @@ export default function ChatPanel({
         for (const msg of raw) {
           const ts = new Date(msg.createdAt?.toDate?.() || msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
           if (msg.role === "user") { historyMessages.push({ id: msg.id, role: "user", content: msg.content, timestamp: ts }); continue; }
-          
+
           let parsed: any = null;
           try { parsed = JSON.parse(msg.content); } catch { }
 
@@ -459,7 +482,7 @@ export default function ChatPanel({
               }
             }
             if (!parsed.yaml) { historyMessages.push({ id: msg.id, role: "assistant", content: msg.content, timestamp: ts }); continue; }
-            
+
             const steps: Step[] = ["docs", "config", "docker", "apiDesign", "db", "folder", "testingPlan", "userStories", "roadmap", "deploymentGuide", "projectTimeline", "riskAnalysis", "finalMarkdown"];
             const hasData = (s: Step) => {
               switch (s) {
@@ -486,7 +509,7 @@ export default function ChatPanel({
             if (msg.artifactType === 'initial') {
               const { content: c1, file: f1, options: o1 } = buildAssistantMessage('docs', latestResult, !localHasConfig);
               historyMessages.push({ id: `${msg.id}-docs`, role: "assistant", content: msg.content, timestamp: ts, file: f1, options: o1 });
-              
+
               const { content: c2, file: f2, options: o2 } = buildAssistantMessage('config', latestResult, false);
               localHasConfig = true;
               historyMessages.push({ id: `${msg.id}-config`, role: "assistant", content: "System config generated.", timestamp: ts, file: f2, options: o2 });
@@ -503,7 +526,7 @@ export default function ChatPanel({
             historyMessages.push({ id: msg.id, role: "assistant", content: msg.content, timestamp: ts, emailPreview: msg.emailPreview, meetingPreview: msg.meetingPreview });
           }
         }
-        
+
         if (notionUrl || exportStatus || githubUrl || githubExportStatus || jiraUrl || jiraExportStatus) {
           const finalMsgIndex = historyMessages.findIndex(m => m.file?.name === "final-spec.md");
           if (finalMsgIndex !== -1) {
@@ -522,30 +545,34 @@ export default function ChatPanel({
             historyMessages[historyMessages.length - 1].jiraExportStatus = jiraExportStatus;
           }
         }
-        
+
         if (isMounted) {
           setMessages(historyMessages);
-          if (Object.keys(latestResult).length > 0) { 
-            setGeneratedData(latestResult); 
-            setHasGeneratedConfig(true); 
+          if (Object.keys(latestResult).length > 0) {
+            setGeneratedData(latestResult);
+            setHasGeneratedConfig(true);
             setConversationMode(true);
           }
-          
+
           const isAwaitingAssistant = historyMessages.length > 0 && historyMessages[historyMessages.length - 1].role === 'user';
           const isAwaitingNotion = Object.keys(latestResult).includes('finalMarkdown') && exportStatus === 'PENDING';
           const isAwaitingGithub = Object.keys(latestResult).includes('finalMarkdown') && githubExportStatus === 'PENDING';
           const isAwaitingJira = Object.keys(latestResult).includes('finalMarkdown') && jiraExportStatus === 'PENDING';
           const awaitingExport = isAwaitingNotion || isAwaitingGithub || isAwaitingJira;
-          
+
           setIsExporting(awaitingExport);
 
           if (isAwaitingAssistant || awaitingExport) {
             pollingTimer = setTimeout(load, 3000);
           }
+          setIsInitialLoading(false);
         }
-      } catch (err) { console.error("Failed to load chat history:", err); }
+      } catch (err) {
+        console.error("Failed to load chat history:", err);
+        if (isMounted) setIsInitialLoading(false);
+      }
     };
-    
+
     // Only clear on initial mount/session change
     if (sessionId || isSharedView) {
       setMessages([]); setGeneratedData(null); setHasGeneratedConfig(false);
@@ -553,7 +580,7 @@ export default function ChatPanel({
     } else {
       setMessages([]); setGeneratedData(null); setHasGeneratedConfig(false);
     }
-    
+
     return () => {
       isMounted = false;
       if (pollingTimer) clearTimeout(pollingTimer);
@@ -583,28 +610,36 @@ export default function ChatPanel({
   const handleSend = async (overrideInput?: string, forceArtifact?: ArtifactType) => {
     if (isSharedView) return;
     const textToSend = (overrideInput ?? input).trim();
-    if (!isSignedIn) { 
+    if (!isSignedIn) {
       if (textToSend) localStorage.setItem("pending_prompt", textToSend);
-      onShowLoginModal?.(true); 
-      return; 
+      onShowLoginModal?.(true);
+      return;
     }
     if (tokenQuota?.exhausted) {
       setMessages(prev => [...prev, { id: Date.now().toString(), role: "assistant", content: `Daily token limit reached.`, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
       return;
     }
     if (!textToSend) return;
+    let forceArtifactParam = forceArtifact;
+    if (!forceArtifactParam) {
+      const matchedArtifact = OPTION_TO_ARTIFACT[textToSend.toLowerCase()];
+      if (matchedArtifact) {
+        forceArtifactParam = matchedArtifact;
+      }
+    }
+
     let artifact: ArtifactType;
     let isModify = false;
-    if (forceArtifact) { artifact = !hasGeneratedConfig ? "initial" : forceArtifact; isModify = false; }
+    if (forceArtifactParam) { artifact = !hasGeneratedConfig ? "initial" : forceArtifactParam; isModify = false; }
     else if (modifyMode && modifyTargetArtifact) { artifact = modifyTargetArtifact; isModify = true; }
     else if (!hasGeneratedConfig) { artifact = "initial"; isModify = false; }
     else { artifact = "markdown"; isModify = false; }
     const currentSessionId = sessionId || getSessionId() || resetSessionId();
     if (!sessionId) { window.history.replaceState(null, "", `/chat/${currentSessionId}`); sessionStorage.setItem("ProdMate-session-id", currentSessionId); }
-    
+
     // Format chat history for /api/chat context
     const chatHistory = messages.map(m => ({ role: m.role, content: m.content }));
-    
+
     setMessages(prev => [...prev, { id: Date.now().toString(), role: "user", content: textToSend, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
     if (!overrideInput) setInput("");
     setIsTyping(true);
@@ -612,22 +647,22 @@ export default function ChatPanel({
     if (!overrideInput && textareaRef.current) textareaRef.current.style.height = "auto";
     setModifyMode(false); setModifyTargetArtifact(null);
     try {
-      const isExplicitRequest = !!forceArtifact || (modifyMode && !!modifyTargetArtifact);
+      const isExplicitRequest = !!forceArtifactParam || (modifyMode && !!modifyTargetArtifact);
       // We also want to use chat if they've generated a config (i.e. conversationMode is effectively true for free text)
       const useChat = (conversationMode || hasGeneratedConfig) && !isExplicitRequest;
       const endpoint = useChat ? "/api/chat" : "/api/generate";
-      const payload = useChat 
+      const payload = useChat
         ? { prompt: textToSend, sessionId: currentSessionId, history: chatHistory }
         : { prompt: textToSend, sessionId: currentSessionId, artifact, mode: isModify ? "modify" : "generate" };
 
-      const res = await fetch(endpoint, { 
-        method: "POST", 
-        headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify(payload) 
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
       });
       if (!res.ok) {
         let errMsg = `API error: ${res.status}`;
-        try { const errBody = await res.json(); if (errBody.error) errMsg = errBody.error; if (errBody.code) errMsg += ` [${errBody.code}]`; } catch {}
+        try { const errBody = await res.json(); if (errBody.error) errMsg = errBody.error; if (errBody.code) errMsg += ` [${errBody.code}]`; } catch { }
         throw new Error(errMsg);
       }
       const data = await res.json();
@@ -636,10 +671,10 @@ export default function ChatPanel({
       if (quotaRes.ok) {
         const fresh = await quotaRes.json(); setTokenQuota(fresh);
       }
-      
+
       let merged: any = generatedData ? { ...generatedData } : {};
-      
-      if (conversationMode) {
+
+      if (useChat) {
         // Conversational Mode Response (Groq + Gemini if modified)
         setMessages(prev => {
           // If the new message has a preview, remove previous previews to maintain a single draft
@@ -651,16 +686,16 @@ export default function ChatPanel({
               return m;
             });
           }
-          return [...updatedPrev, { 
-            id: data.id || (Date.now() + 1).toString(), 
-            role: "assistant", 
-            content: data.content, 
+          return [...updatedPrev, {
+            id: data.id || (Date.now() + 1).toString(),
+            role: "assistant",
+            content: data.content,
             timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
             emailPreview: data.emailPreview,
             meetingPreview: data.meetingPreview
           }];
         });
-        
+
         // If artifacts were modified, they are updated in the backend, but we don't fetch them all again right away.
         // The SSE events would have fired, or we could just trigger a reload of history.
         if (data.artifactsModified && data.artifactsModified.length > 0) {
@@ -694,7 +729,7 @@ export default function ChatPanel({
         const { content, file, options } = buildAssistantMessage(step, merged, !hasGeneratedConfig);
         setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), file, options, notionUrl: data.notionUrl, exportStatus: data.exportStatus, githubUrl: data.githubUrl, githubExportStatus: data.githubExportStatus, jiraUrl: data.jiraUrl, jiraExportStatus: data.jiraExportStatus }]);
       }
-      
+
       // Dispatch event to tell sidebar to refresh its sessions list
       window.dispatchEvent(new CustomEvent('refresh-sessions'));
     } catch (err) {
@@ -704,24 +739,36 @@ export default function ChatPanel({
   };
   const handleSendEmail = async (emailPreview: EmailPreview, messageId: string) => {
     if (!sessionId) return;
-    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, emailPreview: { ...emailPreview, status: 'sending' } } : m));
+
+    if (!emailPreview.recipient || emailPreview.recipient.trim() === "" || emailPreview.recipient.includes("Leave empty string")) {
+      alert("Please specify a valid recipient email address before sending.");
+      return;
+    }
+
+    const signature = "\n\n---\nThis email was sent with the help of ProdMate.";
+    const updatedEmailPreview = {
+      ...emailPreview,
+      body: emailPreview.body.includes("ProdMate") ? emailPreview.body : emailPreview.body + signature
+    };
+
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, emailPreview: { ...updatedEmailPreview, status: 'sending' } } : m));
     try {
       const res = await fetch("/api/action/gmail/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, emailPreview, messageId }),
+        body: JSON.stringify({ sessionId, emailPreview: updatedEmailPreview, messageId }),
       });
       if (res.ok) {
-        setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, emailPreview: { ...emailPreview, status: 'sent', sentAt: new Date().toISOString() } } : m));
+        setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, emailPreview: { ...updatedEmailPreview, status: 'sent', sentAt: new Date().toISOString() } } : m));
       } else {
         const error = await res.json();
-        setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, emailPreview: { ...emailPreview, status: 'preview' } } : m));
-        setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: `Failed to send email: ${error.error || 'Unknown error'}`, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
+        setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, emailPreview: { ...updatedEmailPreview, status: 'preview' } } : m));
+        alert(`Failed to send email: ${error.error || 'Unknown error'}`);
       }
     } catch (err) {
       console.error(err);
-      setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, emailPreview: { ...emailPreview, status: 'preview' } } : m));
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: "Failed to send email.", timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
+      setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, emailPreview: { ...updatedEmailPreview, status: 'preview' } } : m));
+      alert("Failed to send email. Please check your connection or integration settings.");
     }
   };
 
@@ -852,14 +899,18 @@ export default function ChatPanel({
       <div style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column", overflow: "hidden", zIndex: 1 }}>
 
         {/* Scrollable Area */}
-        <div 
+        <div
           ref={scrollableRef}
           onScroll={handleScroll}
           style={{ flex: 1, overflowY: "auto", paddingBottom: "180px", display: "flex", flexDirection: "column" }}
         >
 
           {/* ── Empty / Landing State (Functional Dashboard) ── */}
-          {messages.length === 0 ? (
+          {isInitialLoading ? (
+            <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "8vh 32px 32px", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ fontSize: "14px", color: T.textHint, fontFamily: T.font, animation: "typingFade 2s infinite" }}>Loading conversation...</span>
+            </div>
+          ) : messages.length === 0 ? (
             <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "8vh 32px 32px", alignItems: "center" }}>
               <div style={{ width: "100%", maxWidth: "720px", display: "flex", flexDirection: "column" }}>
 
@@ -886,7 +937,7 @@ export default function ChatPanel({
                     margin: "0",
                     fontFamily: T.font,
                   }}>
-                    {hasGeneratedConfig 
+                    {hasGeneratedConfig
                       ? "Use ProdMate AI to write emails, schedule meetings, update roadmaps, and modify your product documentation."
                       : "Describe your software idea and ProdMate will generate product requirements, roadmaps, user stories, API designs, database schemas, architecture plans and technical documentation."}
                   </p>
@@ -976,141 +1027,234 @@ export default function ChatPanel({
 
           ) : (
             /* ── Message list ── */
-            <div style={{ maxWidth: "1000px", width: "100%", margin: "0 auto", padding: "64px 32px 32px", display: "flex", flexDirection: "column" }}>
+            <div style={{ maxWidth: "900px", width: "100%", margin: "0 auto", padding: "64px 32px 32px", display: "flex", flexDirection: "column", gap: "24px" }}>
               {messages.map((msg, idx) => (
                 <div key={msg.id}
-                  style={{ display: "flex", gap: "16px", padding: "24px 0", borderBottom: idx !== messages.length - 1 ? `1px solid ${T.border}` : "none", width: "100%" }}
+                  style={{ display: "flex", width: "100%", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}
                   onContextMenu={e => { e.preventDefault(); setContextMenu({ visible: true, x: e.clientX, y: e.clientY, messageId: msg.id, messageContent: msg.content, messageRole: msg.role }); }}>
 
-                  {/* Minimal Avatar */}
-                  {msg.role === "user" && cachedImageUrl ? (
-                    <img 
-                      src={cachedImageUrl} 
-                      alt={displayName} 
-                      style={{
-                        width: "24px", height: "24px", borderRadius: "4px", flexShrink: 0,
-                        objectFit: "cover"
-                      }}
-                    />
+                  {msg.role === "user" ? (
+                    <div style={{ display: "flex", gap: "16px", width: "100%", maxWidth: "85%", justifyContent: "flex-end", alignItems: "flex-start" }}>
+                      <div style={{
+                        background: "rgba(255, 255, 255, 0.08)",
+                        padding: "12px 20px",
+                        borderRadius: "24px",
+                        color: T.text,
+                        fontSize: "15px",
+                        lineHeight: "1.5",
+                        fontFamily: T.font
+                      }}>
+                        <div style={{ whiteSpace: "pre-line" }}
+                          dangerouslySetInnerHTML={{
+                            __html: msg.content
+                              .replace(/\n\n\[System Context:[\s\S]*?\]/, '')
+                              .replace(/\n\nCurrent Draft:\n[\s\S]*/, '')
+                              .split('<').join('&lt;').split('>').join('&gt;')
+                              .replace(/^\s*(?:\*|-)\s+/gm, '• ')
+                              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                          }}
+                        />
+                      </div>
+                      <div style={{
+                        width: "32px", height: "32px", borderRadius: "16px", flexShrink: 0, overflow: "hidden",
+                        background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", marginTop: "4px"
+                      }}>
+                        {user?.imageUrl ? (
+                          <img src={user.imageUrl} alt="User" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        ) : (
+                          <UserCircleIcon size={20} />
+                        )}
+                      </div>
+                    </div>
                   ) : (
-                    <div style={{
-                      width: "24px", height: "24px", borderRadius: "4px", flexShrink: 0,
-                      background: msg.role === "user" ? T.borderHover : "#ffffff",
-                      color: msg.role === "user" ? T.text : "#000000",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: "12px", fontWeight: 600, fontFamily: T.font
-                    }}>
-                      {msg.role === "user" ? (displayName.charAt(0).toUpperCase() || "U") : "E"}
+                    <div style={{ display: "flex", gap: "16px", width: "100%", maxWidth: "85%" }}>
+                      {/* Assistant Avatar */}
+                      <div style={{
+                        width: "32px", height: "32px", flexShrink: 0,
+                        color: "#ffffff",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        marginTop: "4px"
+                      }}>
+                        <AppIcon size={28} />
+                      </div>
+
+                      <div style={{ display: "flex", flexDirection: "column", width: "100%", minWidth: 0 }}>
+                        {/* Tool badges */}
+                        {msg.tools && (
+                          <div style={{ display: "flex", gap: "6px", marginBottom: "8px", flexWrap: "wrap" }}>
+                            {msg.tools.map(t => (
+                              <span key={t} style={{ fontSize: "11px", color: T.textMuted, background: T.surfaceHover, border: `1px solid ${T.border}`, padding: "2px 6px", fontFamily: T.font, borderRadius: "4px" }}>{t}</span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Message body */}
+                        <div style={{ width: "100%", color: "rgba(255,255,255,0.9)", fontSize: "15px", lineHeight: "1.6", whiteSpace: "pre-line", fontFamily: T.font }}>
+                          {(() => {
+                            let text = msg.content
+                              .replace(/\n\n\[System Context:[\s\S]*?\]/, '')
+                              .replace(/\n\nCurrent Draft:\n[\s\S]*/, '')
+                              .split('<').join('&lt;').split('>').join('&gt;');
+                            
+                            const parts: React.ReactNode[] = [];
+                            
+                            // Fallback for previous messages that used "---" followed by paths like "app/"
+                            let fallbackFolder = null;
+                            if (text.includes('\n---\n') && text.includes('app/')) {
+                               const split = text.split('\n---\n');
+                               if (split.length === 2 && split[1].trim().includes('app/')) {
+                                  text = split[0];
+                                  fallbackFolder = split[1];
+                               }
+                            }
+
+                            // Match ```folder ... ``` blocks
+                            const folderRegex = /```folder\n([\s\S]*?)```/g;
+                            let lastIndex = 0;
+                            let match;
+
+                            const formatText = (t: string) => t.replace(/^\s*(?:\*|-)\s+/gm, '• ').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+                            while ((match = folderRegex.exec(text)) !== null) {
+                              if (match.index > lastIndex) {
+                                const chunk = text.substring(lastIndex, match.index);
+                                parts.push(<span key={`text-${lastIndex}`} dangerouslySetInnerHTML={{ __html: formatText(chunk) }} />);
+                              }
+                              parts.push(
+                                <div key={`folder-${match.index}`} style={{ margin: "16px 0", border: `1px solid ${T.border}`, borderRadius: "8px", overflow: "hidden" }}>
+                                  <FolderStructureViewer content={match[1]} />
+                                </div>
+                              );
+                              lastIndex = folderRegex.lastIndex;
+                            }
+
+                            if (lastIndex < text.length) {
+                              parts.push(<span key={`text-last`} dangerouslySetInnerHTML={{ __html: formatText(text.substring(lastIndex)) }} />);
+                            }
+
+                            if (fallbackFolder) {
+                               parts.push(
+                                 <div key="fallback-folder" style={{ margin: "16px 0", border: `1px solid ${T.border}`, borderRadius: "8px", overflow: "hidden" }}>
+                                   <FolderStructureViewer content={fallbackFolder.trim()} />
+                                 </div>
+                               );
+                            }
+
+                            return parts;
+                          })()}
+                        </div>
+
+                        {/* File artifact card */}
+                        {msg.file && (
+                          <div style={{ marginTop: "16px", border: `1px solid ${T.border}`, background: T.surface, borderRadius: "8px", overflow: "hidden" }}>
+                            <FileHeader msg={msg} markdownMode={markdownMode} setMarkdownMode={setMarkdownMode} />
+                            <div style={{ overflowX: "auto" }}>
+                              <FileContentRenderer msg={msg} markdownMode={markdownMode} />
+                            </div>
+
+                            {/* Modify button */}
+                            {msg.role === "assistant" && msg.file.language !== "dbschema" && !isSharedView && (
+                              <div style={{ padding: "8px 12px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "flex-end", background: T.surfaceHover }}>
+                                <button
+                                  onClick={() => { const target = LANG_TO_ARTIFACT[msg.file!.language] ?? "config"; setModifyMode(true); setModifyTargetArtifact(target); textareaRef.current?.focus(); }}
+                                  style={{ padding: "4px 12px", background: "transparent", border: `1px solid ${T.border}`, color: T.textMuted, fontSize: "12px", fontFamily: T.font, cursor: "pointer", borderRadius: "4px", transition: "all .15s" }}
+                                  onMouseEnter={e => { e.currentTarget.style.borderColor = T.textMuted; e.currentTarget.style.color = T.text; }}
+                                  onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textMuted; }}>
+                                  Modify
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Conversational AI Actions */}
+                        {msg.emailPreview && (
+                          <EmailPreviewCard
+                            email={msg.emailPreview}
+                            onSend={(updated) => handleSendEmail(updated, msg.id)}
+                            onCancel={() => handleCancelAction(msg.id, 'email')}
+                            onRefine={handleRefine}
+                            isSending={msg.emailPreview.status === 'sending'}
+                          />
+                        )}
+
+                        {msg.meetingPreview && (
+                          <MeetingPreviewCard
+                            meeting={msg.meetingPreview}
+                            onSchedule={(updated) => handleScheduleMeeting(updated, msg.id)}
+                            onCancel={() => handleCancelAction(msg.id, 'meeting')}
+                            onRefine={handleRefine}
+                            isScheduling={msg.meetingPreview.status === 'scheduling'}
+                          />
+                        )}
+
+                        {/* Final Markdown Project Ready Banner & Integrations */}
+                        {msg.role === "assistant" && msg.file?.language === "finalmarkdown" && !isSharedView && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "16px" }}>
+                            <div style={{
+                              display: "flex", alignItems: "center", justifyContent: "center", padding: "16px",
+                              border: `1px dashed rgba(255, 255, 255, 0.15)`, borderRadius: "12px",
+                              background: "rgba(255, 255, 255, 0.01)", cursor: "pointer", transition: "all 0.2s ease"
+                            }} onClick={() => textareaRef.current?.focus()}
+                              onMouseEnter={e => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.03)"; e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.3)"; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.01)"; e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.15)"; }}>
+                              <span style={{ fontSize: "13px", color: T.textHint, display: "flex", alignItems: "center", gap: "8px", fontFamily: T.font }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                </svg>
+                                <span style={{ color: T.text, fontWeight: 500 }}>Project Ready</span>
+                                •
+                                Continue refining or ask questions about your project
+                              </span>
+                            </div>
+
+                            <FinalSummaryCard
+                              events={liveEvents}
+                              githubUrl={msg.githubUrl}
+                              notionUrl={msg.notionUrl}
+                              jiraUrl={msg.jiraUrl}
+                              sessionId={sessionId}
+                            />
+                          </div>
+                        )}
+
+                        {/* Option buttons */}
+                        {msg.options && msg.options.length > 0 && msg.role === "assistant" && !isSharedView && (
+                          <div style={{ display: "flex", gap: "8px", marginTop: "16px", flexWrap: "wrap", alignItems: "center" }}>
+                            {msg.options?.map((option, i) => {
+                              const isClicked = messages.some(m => m.role === "user" && m.content === option);
+                              const isDisabled = isClicked || isTyping;
+                              return (
+                                <button key={i} onClick={() => { if (!isDisabled) handleOptionClick(option); }}
+                                  style={{ padding: "6px 12px", background: isClicked ? "transparent" : T.surfaceHover, border: `1px solid ${isClicked ? T.border : T.borderHover}`, color: isClicked ? T.textHint : T.textMuted, fontSize: "12px", fontFamily: T.font, cursor: isDisabled ? "default" : "pointer", transition: "all .15s", borderRadius: "6px", opacity: isDisabled ? 0.5 : 1 }}
+                                  onMouseEnter={e => { if (!isDisabled) { (e.currentTarget as HTMLButtonElement).style.background = T.text; (e.currentTarget as HTMLButtonElement).style.color = T.bg; (e.currentTarget as HTMLButtonElement).style.borderColor = T.text; } }}
+                                  onMouseLeave={e => { if (!isDisabled) { (e.currentTarget as HTMLButtonElement).style.background = T.surfaceHover; (e.currentTarget as HTMLButtonElement).style.color = T.textMuted; (e.currentTarget as HTMLButtonElement).style.borderColor = T.borderHover; } }}>
+                                  {option}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
-
-                  <div style={{ display: "flex", flexDirection: "column", width: "100%", minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                      <span style={{ fontSize: "13px", fontWeight: 500, color: T.text, fontFamily: T.font }}>
-                        {msg.role === "user" ? displayName : "ProdMate AI"}
-                      </span>
-                      <span style={{ fontSize: "12px", color: T.textHint, fontFamily: T.font }}>{msg.timestamp}</span>
-                    </div>
-
-                    {/* Tool badges */}
-                    {msg.tools && (
-                      <div style={{ display: "flex", gap: "6px", margin: "8px 0", flexWrap: "wrap" }}>
-                        {msg.tools.map(t => (
-                          <span key={t} style={{ fontSize: "11px", color: T.textMuted, background: T.surfaceHover, border: `1px solid ${T.border}`, padding: "2px 6px", fontFamily: T.font, borderRadius: "4px" }}>{t}</span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Message body */}
-                    <div style={{ width: "100%", color: "rgba(255,255,255,0.85)", fontSize: "14px", lineHeight: "1.6", whiteSpace: "pre-line", fontFamily: T.font }}>
-                      {msg.content.replace(/\n\n\[System Context:[\s\S]*?\]/, '').replace(/\n\nCurrent Draft:\n[\s\S]*/, '')}
-
-                      {/* File artifact card */}
-                      {msg.file && (
-                        <div style={{ marginTop: "16px", border: `1px solid ${T.border}`, background: T.surface, borderRadius: "8px", overflow: "hidden" }}>
-                          <FileHeader msg={msg} markdownMode={markdownMode} setMarkdownMode={setMarkdownMode} />
-                          <div style={{ overflowX: "auto" }}>
-                            <FileContentRenderer msg={msg} markdownMode={markdownMode} />
-                          </div>
-
-                          {/* Modify button */}
-                          {msg.role === "assistant" && msg.file.language !== "dbschema" && !isSharedView && (
-                            <div style={{ padding: "8px 12px", borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "flex-end", background: T.surfaceHover }}>
-                              <button
-                                onClick={() => { const target = LANG_TO_ARTIFACT[msg.file!.language] ?? "config"; setModifyMode(true); setModifyTargetArtifact(target); textareaRef.current?.focus(); }}
-                                style={{ padding: "4px 12px", background: "transparent", border: `1px solid ${T.border}`, color: T.textMuted, fontSize: "12px", fontFamily: T.font, cursor: "pointer", borderRadius: "4px", transition: "all .15s" }}
-                                onMouseEnter={e => { e.currentTarget.style.borderColor = T.textMuted; e.currentTarget.style.color = T.text; }}
-                                onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textMuted; }}>
-                                Modify
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Conversational AI Actions */}
-                      {msg.emailPreview && (
-                        <EmailPreviewCard 
-                          email={msg.emailPreview} 
-                          onSend={(updated) => handleSendEmail(updated, msg.id)}
-                          onCancel={() => handleCancelAction(msg.id, 'email')}
-                          onRefine={handleRefine}
-                          isSending={msg.emailPreview.status === 'sending'}
-                        />
-                      )}
-
-                      {msg.meetingPreview && (
-                        <MeetingPreviewCard 
-                          meeting={msg.meetingPreview} 
-                          onSchedule={(updated) => handleScheduleMeeting(updated, msg.id)}
-                          onCancel={() => handleCancelAction(msg.id, 'meeting')}
-                          onRefine={handleRefine}
-                          isScheduling={msg.meetingPreview.status === 'scheduling'}
-                        />
-                      )}
-                    </div>
-
-                    {/* Option buttons */}
-                    {msg.options && msg.options.length > 0 && msg.role === "assistant" && !isSharedView && (
-                      <div style={{ display: "flex", gap: "8px", marginTop: "16px", flexWrap: "wrap", alignItems: "center" }}>
-                        {msg.options?.map((option, i) => {
-                          const isClicked = messages.some(m => m.role === "user" && m.content === option);
-                          const isDisabled = isClicked || isTyping;
-                          return (
-                            <button key={i} onClick={() => { if (!isDisabled) handleOptionClick(option); }}
-                              style={{ padding: "6px 12px", background: isClicked ? "transparent" : T.surfaceHover, border: `1px solid ${isClicked ? T.border : T.borderHover}`, color: isClicked ? T.textHint : T.textMuted, fontSize: "12px", fontFamily: T.font, cursor: isDisabled ? "default" : "pointer", transition: "all .15s", borderRadius: "6px", opacity: isDisabled ? 0.5 : 1 }}
-                              onMouseEnter={e => { if (!isDisabled) { (e.currentTarget as HTMLButtonElement).style.background = T.text; (e.currentTarget as HTMLButtonElement).style.color = T.bg; (e.currentTarget as HTMLButtonElement).style.borderColor = T.text; } }}
-                              onMouseLeave={e => { if (!isDisabled) { (e.currentTarget as HTMLButtonElement).style.background = T.surfaceHover; (e.currentTarget as HTMLButtonElement).style.color = T.textMuted; (e.currentTarget as HTMLButtonElement).style.borderColor = T.borderHover; } }}>
-                              {option}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
                 </div>
               ))}
 
               {/* Typing indicator */}
               {!isSharedView && (isTyping || isExporting) && (
                 <div style={{ display: "flex", gap: "16px", padding: "24px 0" }}>
-                  <div style={{ width: "24px", height: "24px", borderRadius: "4px", flexShrink: 0, background: "#ffffff", color: "#000000", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 600, fontFamily: T.font }}>E</div>
+                  <div style={{ width: "32px", height: "32px", flexShrink: 0, color: "#ffffff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <AppIcon size={24} />
+                  </div>
                   <div style={{ display: "flex", alignItems: "center", height: "24px" }}>
                     <TypingStatusText artifact={generatingArtifact} isExporting={isExporting} />
                   </div>
                 </div>
               )}
 
-              {/* Integration Prompt Card (formerly Final Summary) after generation finishes */}
-              {!isSharedView && !isTyping && !isExporting && messages.length > 0 && messages[messages.length - 1].role === "assistant" && generatedData?.finalMarkdown && (
-                <FinalSummaryCard 
-                  events={liveEvents}
-                  githubUrl={messages[messages.length - 1]?.githubUrl}
-                  notionUrl={messages[messages.length - 1]?.notionUrl}
-                  jiraUrl={messages[messages.length - 1]?.jiraUrl}
-                  sessionId={sessionId}
-                />
-              )}
+
 
               <div ref={messagesEndRef} style={{ height: "40px" }} />
             </div>
@@ -1119,102 +1263,89 @@ export default function ChatPanel({
 
         {/* Blur Backdrop */}
         <div style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: "180px",
-            background: "linear-gradient(to top, rgba(9, 9, 11, 0.9) 20%, rgba(9, 9, 11, 0) 100%)",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
-            maskImage: "linear-gradient(to top, black 40%, transparent 100%)",
-            WebkitMaskImage: "linear-gradient(to top, black 40%, transparent 100%)",
-            pointerEvents: "none",
-            zIndex: 10,
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: "180px",
+          background: "linear-gradient(to top, rgba(9, 9, 11, 0.9) 20%, rgba(9, 9, 11, 0) 100%)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          maskImage: "linear-gradient(to top, black 40%, transparent 100%)",
+          WebkitMaskImage: "linear-gradient(to top, black 40%, transparent 100%)",
+          pointerEvents: "none",
+          zIndex: 10,
         }} />
 
         {/* ── Fixed input area ── */}
         <div style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            padding: "0px 32px 32px",
-            pointerEvents: "none",
-            zIndex: 11,
-          }}>
-            <div style={{ width: "100%", maxWidth: "800px", margin: "0 auto", pointerEvents: "auto" }}>
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          padding: "0px 32px 32px",
+          pointerEvents: "none",
+          zIndex: 11,
+        }}>
+          <div style={{ width: "100%", maxWidth: "800px", margin: "0 auto", pointerEvents: "auto" }}>
 
-              {isSharedView ? (
-                <>
-                  {/* ── Premium Read-Only Placeholder Box ── */}
+            {isSharedView ? (
+              <>
+                {/* ── Premium Read-Only Placeholder Box ── */}
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", padding: "16px",
+                  background: "rgba(255, 255, 255, 0.01)", border: "1px dashed rgba(255, 255, 255, 0.15)",
+                  borderRadius: "12px", width: "100%",
+                }}>
+                  <span style={{ fontSize: "13px", color: "#a1a1aa", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                    This is a shared ProdMate conversation. Fork this project to continue working on it.
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Modify mode banner */}
+                {modifyMode && modifyTargetArtifact && (
                   <div style={{
-                    display: "flex", alignItems: "center", justifyContent: "center", padding: "16px",
-                    background: "rgba(255, 255, 255, 0.01)", border: "1px dashed rgba(255, 255, 255, 0.15)",
-                    borderRadius: "12px", width: "100%",
+                    display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", padding: "8px 12px",
+                    border: `1px solid ${T.borderHover}`, borderRadius: "8px",
+                    background: T.surfaceHover,
                   }}>
-                    <span style={{ fontSize: "13px", color: "#a1a1aa", display: "flex", alignItems: "center", gap: "8px" }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                      </svg>
-                      This is a shared ProdMate conversation. Fork this project to continue working on it.
-                    </span>
+                    <div style={{ width: "4px", height: "4px", borderRadius: "2px", background: T.text, flexShrink: 0 }} />
+                    <span style={{ fontSize: "12px", fontFamily: T.font, color: T.text, fontWeight: 500 }}>Targeting: {modifyTargetArtifact}</span>
+                    <span style={{ fontSize: "12px", fontFamily: T.font, color: T.textHint, flex: 1 }}>Only this artifact will regenerate</span>
+                    <button
+                      onClick={() => { setModifyMode(false); setModifyTargetArtifact(null); }}
+                      style={{ background: "none", border: "none", color: T.textHint, cursor: "pointer", fontSize: "12px", fontFamily: T.font, padding: "0 4px", transition: "color .15s" }}
+                      onMouseEnter={e => e.currentTarget.style.color = T.text}
+                      onMouseLeave={e => e.currentTarget.style.color = T.textHint}>
+                      ✕ Cancel
+                    </button>
                   </div>
-                </>
-              ) : (
-                <>
-                  {/* Conversation Mode banner */}
-                  {conversationMode && !modifyMode && (
-                    <div style={{
-                      display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", padding: "8px 12px",
-                      border: `1px solid rgba(139, 92, 246, 0.3)`, borderRadius: "8px",
-                      background: "rgba(139, 92, 246, 0.05)",
-                    }}>
-                      <div style={{ width: "6px", height: "6px", borderRadius: "3px", background: "#8b5cf6", flexShrink: 0, boxShadow: "0 0 8px #8b5cf6" }} />
-                      <span style={{ fontSize: "12px", fontFamily: T.font, color: "#8b5cf6", fontWeight: 600 }}>Project Ready</span>
-                      <span style={{ fontSize: "12px", fontFamily: T.font, color: T.textHint, flex: 1 }}>Continue refining or ask questions about your project</span>
-                    </div>
-                  )}
+                )}
 
-                  {/* Modify mode banner */}
-                  {modifyMode && modifyTargetArtifact && (
-                    <div style={{
-                      display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px", padding: "8px 12px",
-                      border: `1px solid ${T.borderHover}`, borderRadius: "8px",
-                      background: T.surfaceHover,
-                    }}>
-                      <div style={{ width: "4px", height: "4px", borderRadius: "2px", background: T.text, flexShrink: 0 }} />
-                      <span style={{ fontSize: "12px", fontFamily: T.font, color: T.text, fontWeight: 500 }}>Targeting: {modifyTargetArtifact}</span>
-                      <span style={{ fontSize: "12px", fontFamily: T.font, color: T.textHint, flex: 1 }}>Only this artifact will regenerate</span>
-                      <button
-                        onClick={() => { setModifyMode(false); setModifyTargetArtifact(null); }}
-                        style={{ background: "none", border: "none", color: T.textHint, cursor: "pointer", fontSize: "12px", fontFamily: T.font, padding: "0 4px", transition: "color .15s" }}
-                        onMouseEnter={e => e.currentTarget.style.color = T.text}
-                        onMouseLeave={e => e.currentTarget.style.color = T.textHint}>
-                        ✕ Cancel
-                      </button>
-                    </div>
-                  )}
+                {messages.length === 0 && (
+                  <div style={{ marginBottom: "12px", fontSize: "13px", fontWeight: 500, color: T.textMuted }}>Or start with your own product idea</div>
+                )}
 
-                  {messages.length === 0 && (
-                    <div style={{ marginBottom: "12px", fontSize: "13px", fontWeight: 500, color: T.textMuted }}>Or start with your own product idea</div>
-                  )}
-                  
-                  <InputArea
-                    input={input}
-                    textareaRef={textareaRef}
-                    tokenQuota={tokenQuota}
-                    handleInputChange={handleInputChange}
-                    handleKeyDown={handleKeyDown}
-                    handleSend={handleSend}
-                    isTyping={isTyping || isExporting}
-                    hasGeneratedConfig={hasGeneratedConfig}
-                  />
-                </>
-              )}
-            </div>
+                <InputArea
+                  input={input}
+                  textareaRef={textareaRef}
+                  tokenQuota={tokenQuota}
+                  handleInputChange={handleInputChange}
+                  handleKeyDown={handleKeyDown}
+                  handleSend={handleSend}
+                  isTyping={isTyping || isExporting}
+                  hasGeneratedConfig={hasGeneratedConfig}
+                />
+              </>
+            )}
           </div>
+        </div>
 
         {/* Scroll Down Button */}
         {showScrollDown && (

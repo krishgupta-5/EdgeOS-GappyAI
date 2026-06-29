@@ -48,7 +48,13 @@ CURRENT PROJECT CONTEXT:
 INSTRUCTIONS:
 1. Stay strictly within the context of the current project.
 2. If the user asks an unrelated question, politely decline and refocus them on the project.
-3. Be concise, professional, and helpful.`;
+3. Be concise, professional, and helpful.
+4. If you output or show a folder structure, you MUST wrap it EXACTLY in a markdown block with the "folder" language identifier like this:
+\`\`\`folder
+app/
+components/
+...
+\`\`\``
 
   messages.push({ role: 'system', content: systemContent });
 

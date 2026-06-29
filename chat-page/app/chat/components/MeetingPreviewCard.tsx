@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import type { MeetingPreview } from "@/lib/pipeline/types";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 // Design Tokens (Onyx Minimal Palette)
 const T = {
@@ -161,6 +163,61 @@ export default function MeetingPreviewCard({ meeting, onSchedule, onCancel, onRe
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes spin { 100% { transform: rotate(360deg); } }
+        .custom-datepicker {
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+          color: ${T.text};
+          outline: none !important;
+          padding: 6px 10px;
+          font-size: 14px;
+          font-family: ${T.font};
+          border-radius: 8px;
+          box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);
+          transition: all 0.2s ease;
+          width: 110px;
+          box-sizing: border-box !important;
+          margin: 0;
+        }
+        .custom-datepicker:focus {
+          border-color: rgba(255, 255, 255, 0.3) !important;
+        }
+        .react-datepicker {
+          background-color: ${T.surfaceHover} !important;
+          border: 1px solid ${T.border} !important;
+          font-family: ${T.font} !important;
+          color: ${T.text} !important;
+        }
+        .react-datepicker__header {
+          background-color: ${T.surfaceHover} !important;
+          border-bottom: 1px solid ${T.border} !important;
+        }
+        .react-datepicker__current-month, .react-datepicker-time__header, .react-datepicker-year-header, .react-datepicker__day-name {
+          color: ${T.text} !important;
+        }
+        .react-datepicker__day {
+          color: ${T.text} !important;
+        }
+        .react-datepicker__day:hover {
+          background-color: ${T.borderHover} !important;
+        }
+        .react-datepicker__day--selected, .react-datepicker__day--keyboard-selected {
+          background-color: ${T.text} !important;
+          color: ${T.bg} !important;
+        }
+        .react-datepicker__time-container {
+          border-left: 1px solid ${T.border} !important;
+        }
+        .react-datepicker__time-list-item {
+          background-color: ${T.surfaceHover} !important;
+          color: ${T.text} !important;
+        }
+        .react-datepicker__time-list-item:hover {
+          background-color: ${T.borderHover} !important;
+        }
+        .react-datepicker__time-list-item--selected {
+          background-color: ${T.text} !important;
+          color: ${T.bg} !important;
+        }
       `}</style>
       
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${T.border}`, paddingBottom: "12px" }}>
@@ -187,26 +244,59 @@ export default function MeetingPreviewCard({ meeting, onSchedule, onCancel, onRe
         
         <div style={{ color: T.textMuted }}>When:</div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <input 
-            type="date"
-            value={localMeeting.date}
-            onChange={(e) => handleChange('date', e.target.value)}
+          <DatePicker 
+            selected={localMeeting.date ? new Date(localMeeting.date) : new Date()}
+            onChange={(date: Date | null) => {
+              if (date) {
+                // Adjust for local timezone offset so it doesn't shift to previous day
+                const offset = date.getTimezoneOffset() * 60000;
+                const localDate = new Date(date.getTime() - offset);
+                handleChange('date', localDate.toISOString().split('T')[0]);
+              }
+            }}
             disabled={isSchedulingOrScheduled}
-            style={{ background: "transparent", border: `1px solid ${T.border}`, color: T.text, outline: "none", padding: "4px 8px", fontSize: "14px", fontFamily: T.font, borderRadius: "6px" }}
+            dateFormat="yyyy-MM-dd"
+            className="custom-datepicker"
           />
-          <input 
-            type="time"
-            value={localMeeting.time}
-            onChange={(e) => handleChange('time', e.target.value)}
+          <DatePicker 
+            selected={(() => {
+              const d = new Date();
+              if (localMeeting.time) {
+                 const match = localMeeting.time.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+                 if (match) {
+                    let [_, h, m, ampm] = match;
+                    let hours = parseInt(h);
+                    if (ampm && ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
+                    if (ampm && ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
+                    d.setHours(hours, parseInt(m), 0, 0);
+                 }
+              }
+              return d;
+            })()}
+            onChange={(date: Date | null) => {
+              if (date) {
+                let h = date.getHours();
+                const m = date.getMinutes().toString().padStart(2, '0');
+                const ampm = h >= 12 ? 'PM' : 'AM';
+                h = h % 12 || 12;
+                handleChange('time', `${h.toString().padStart(2, '0')}:${m} ${ampm}`);
+              }
+            }}
+            showTimeSelect
+            showTimeSelectOnly
+            timeIntervals={15}
+            timeCaption="Time"
+            dateFormat="hh:mm aa"
             disabled={isSchedulingOrScheduled}
-            style={{ background: "transparent", border: `1px solid ${T.border}`, color: T.text, outline: "none", padding: "4px 8px", fontSize: "14px", fontFamily: T.font, borderRadius: "6px" }}
+            className="custom-datepicker"
           />
           <input 
             type="number"
             value={localMeeting.duration}
             onChange={(e) => handleChange('duration', parseInt(e.target.value) || 30)}
             disabled={isSchedulingOrScheduled}
-            style={{ background: "transparent", border: `1px solid ${T.border}`, color: T.text, outline: "none", padding: "4px 8px", fontSize: "14px", fontFamily: T.font, borderRadius: "6px", width: "60px" }}
+            className="custom-datepicker"
+            style={{ width: "64px", textAlign: "center" }}
           /> <span style={{ color: T.textMuted }}>mins</span>
         </div>
 

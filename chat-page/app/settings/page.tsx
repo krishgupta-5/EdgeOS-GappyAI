@@ -530,13 +530,7 @@ function PreferencesSection() {
       <SectionHeader title="Preferences" description="Customize your workspace environment and tooling behaviors." />
 
       <GlassCard>
-        <ToggleRow title="Terminal Output Mode" description="Display raw execution logs instead of formatted text responses." defaultChecked={true} />
-        <div style={{ height: "1px", width: "100%", background: T.border }} />
-        <ToggleRow title="Auto-Render Diagrams" description="Automatically compile Mermaid/Kroki diagrams when detected in output." defaultChecked={true} />
-        <div style={{ height: "1px", width: "100%", background: T.border }} />
-        <ToggleRow title="Strict Focus Mode" description="Hide sidebar and extraneous UI elements while generating infrastructure." defaultChecked={false} />
 
-        <div style={{ height: "1px", width: "100%", background: T.border }} />
 
         {/* Delete Section */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "24px" }}>

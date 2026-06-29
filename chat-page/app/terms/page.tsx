@@ -25,8 +25,8 @@ export default function TermsOfService() {
   // Reliable Scroll Spy for the Index
   useEffect(() => {
     const sections = [
-      "acceptance", "description", "accounts", "payment", 
-      "ip", "prohibited", "availability", "liability", 
+      "acceptance", "description", "accounts", "payment",
+      "ip", "prohibited", "availability", "liability",
       "termination", "changes", "contact"
     ];
     const observer = new IntersectionObserver(
@@ -151,16 +151,15 @@ export default function TermsOfService() {
             <div style={{ fontSize: "11px", color: T.textHint, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "12px", paddingLeft: "12px", fontWeight: 600 }}>
               Contents
             </div>
-            
+
             <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: "2px" }}>
               {/* Sliding Highlighter */}
               <div style={{
                 position: "absolute", left: 0, right: 0, height: "35px",
                 background: T.surfaceHover, borderRadius: "6px", zIndex: 0,
                 transition: "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-                transform: `translateY(${
-                  Math.max(0, sectionsList.findIndex(s => s.id === activeSection)) * 37
-                }px)`
+                transform: `translateY(${Math.max(0, sectionsList.findIndex(s => s.id === activeSection)) * 37
+                  }px)`
               }} />
 
               {sectionsList.map(item => (
@@ -199,7 +198,7 @@ export default function TermsOfService() {
                 You are responsible for maintaining the confidentiality of your account credentials. You agree to notify us immediately of any unauthorized use of your account. You are solely responsible for all activities that occur under your account.
               </PolicySection>
             </div>
-            
+
             <div style={{ height: "1px", width: "100%", background: T.border }} />
 
             <div id="payment">
@@ -223,7 +222,7 @@ export default function TermsOfService() {
                 You may not use our service for any illegal or unauthorized purpose. You may not use our service to develop malicious software, violate intellectual property rights, or engage in activities that harm others or our platform.
               </PolicySection>
             </div>
-            
+
             <div style={{ height: "1px", width: "100%", background: T.border }} />
 
             <div id="availability">
@@ -231,7 +230,7 @@ export default function TermsOfService() {
                 We strive to maintain high service availability but do not guarantee uninterrupted access. Support levels vary by subscription tier as described in our pricing page.
               </PolicySection>
             </div>
-            
+
             <div style={{ height: "1px", width: "100%", background: T.border }} />
 
             <div id="liability">
@@ -239,7 +238,7 @@ export default function TermsOfService() {
                 To the maximum extent permitted by law, ProdMate shall not be liable for any indirect, incidental, special, or consequential damages resulting from your use of the service.
               </PolicySection>
             </div>
-            
+
             <div style={{ height: "1px", width: "100%", background: T.border }} />
 
             <div id="termination">
@@ -266,7 +265,7 @@ export default function TermsOfService() {
                   borderRadius: "6px", border: `1px solid ${T.border}`, fontFamily: "Consolas, 'Courier New', monospace",
                   fontSize: "13px", color: T.text, display: "inline-block"
                 }}>
-                  legal@ProdMate.com
+                  legal@prodmate.dev
                 </div>
               </PolicySection>
             </div>
