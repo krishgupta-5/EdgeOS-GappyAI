@@ -34,7 +34,7 @@ interface SidebarProps {
 
 // ── Minimal Premium Design Tokens ──────────────────────────────────────
 const T = {
-  bg: "#09090b", // Deep onyx
+  bg: "#09090b", // Deep ProdMate
   surface: "rgba(255,255,255,0.02)",
   surfaceHover: "rgba(255,255,255,0.05)",
   border: "rgba(255,255,255,0.08)",
@@ -339,14 +339,14 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
 
   useIsomorphicLayoutEffect(() => {
     if (typeof window !== "undefined") {
-      const img = localStorage.getItem("edge-os-user-image");
+      const img = localStorage.getItem("ProdMate-user-image");
       if (img) setCachedImageUrl(img);
-      const name = localStorage.getItem("edge-os-user-name");
+      const name = localStorage.getItem("ProdMate-user-name");
       if (name) setCachedDisplayName(name);
-      const email = localStorage.getItem("edge-os-user-email");
+      const email = localStorage.getItem("ProdMate-user-email");
       if (email) setCachedEmail(email);
       try {
-        const p = localStorage.getItem("edge-os-pinned-sessions");
+        const p = localStorage.getItem("ProdMate-pinned-sessions");
         if (p) setPinnedSessions(JSON.parse(p));
       } catch (e) {}
     }
@@ -354,25 +354,25 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
-      localStorage.removeItem("edge-os-user-image");
-      localStorage.removeItem("edge-os-user-name");
-      localStorage.removeItem("edge-os-user-email");
+      localStorage.removeItem("ProdMate-user-image");
+      localStorage.removeItem("ProdMate-user-name");
+      localStorage.removeItem("ProdMate-user-email");
       setCachedImageUrl(null);
       setCachedDisplayName("User");
       setCachedEmail(null);
     } else if (user) {
       if (user.imageUrl) {
         setCachedImageUrl(user.imageUrl);
-        localStorage.setItem("edge-os-user-image", user.imageUrl);
+        localStorage.setItem("ProdMate-user-image", user.imageUrl);
       }
       if (user.firstName || user.primaryEmailAddress?.emailAddress) {
         const name = user.firstName ? `${user.firstName}${user.lastName ? " " + user.lastName : ""}` : (user.primaryEmailAddress?.emailAddress ?? "User");
         setCachedDisplayName(name);
-        localStorage.setItem("edge-os-user-name", name);
+        localStorage.setItem("ProdMate-user-name", name);
       }
       if (user.primaryEmailAddress?.emailAddress) {
         setCachedEmail(user.primaryEmailAddress.emailAddress);
-        localStorage.setItem("edge-os-user-email", user.primaryEmailAddress.emailAddress);
+        localStorage.setItem("ProdMate-user-email", user.primaryEmailAddress.emailAddress);
       }
     }
   }, [user, isLoaded, isSignedIn]);
@@ -434,7 +434,7 @@ export default function Sidebar({ activeAgentId, onSelectAgent, isOpen = false, 
   const handleTogglePin = (id: string) => {
     setPinnedSessions(prev => {
       const newPins = prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id];
-      localStorage.setItem("edge-os-pinned-sessions", JSON.stringify(newPins));
+      localStorage.setItem("ProdMate-pinned-sessions", JSON.stringify(newPins));
       return newPins;
     });
     setContextMenu(null);

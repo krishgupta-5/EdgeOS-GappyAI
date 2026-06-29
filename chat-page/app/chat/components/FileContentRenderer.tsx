@@ -8,7 +8,7 @@ import TestingPlanViewer from "@/app/chat/components/TestingPlanViewer";
 import CodeRenderer from "@/app/chat/components/CodeRenderer";
 import MarkdownRenderer from "@/app/chat/components/MarkdownRenderer";
 
-// ── EdgeOS Design Tokens (Onyx Minimal Palette) ──────────
+// ── ProdMate Design Tokens (ProdMate Minimal Palette) ──────────
 const T = {
   bg: "#09090b",
   codeBg: "#0d1117", // Deepest black for code block backgrounds

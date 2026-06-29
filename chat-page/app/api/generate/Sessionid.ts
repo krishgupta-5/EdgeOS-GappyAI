@@ -19,7 +19,7 @@
  * Wire resetSessionId() to a "New Chat" button to clear server-side state.
  */
 
-const SESSION_KEY = "edge-os-session-id";
+const SESSION_KEY = "ProdMate-session-id";
 
 function generateId(): string {
   if (

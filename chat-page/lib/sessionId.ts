@@ -4,7 +4,7 @@ export function getSessionId(): string | null {
   if (typeof window === "undefined") return null;
 
   // Try to get from sessionStorage first
-  let sessionId = sessionStorage.getItem("edge-os-session-id");
+  let sessionId = sessionStorage.getItem("ProdMate-session-id");
 
   // If not in sessionStorage, try to get from URL
   if (!sessionId) {
@@ -13,7 +13,7 @@ export function getSessionId(): string | null {
     if (chatIndex !== -1 && pathParts[chatIndex + 1]) {
       sessionId = pathParts[chatIndex + 1];
       // Store it for future use
-      sessionStorage.setItem("edge-os-session-id", sessionId);
+      sessionStorage.setItem("ProdMate-session-id", sessionId);
     }
   }
 
@@ -27,7 +27,7 @@ export function resetSessionId(): string {
   const newSessionId = generateSessionId();
 
   // Store in sessionStorage
-  sessionStorage.setItem("edge-os-session-id", newSessionId);
+  sessionStorage.setItem("ProdMate-session-id", newSessionId);
 
   return newSessionId;
 }

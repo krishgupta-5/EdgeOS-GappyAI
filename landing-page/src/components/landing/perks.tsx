@@ -11,7 +11,7 @@ const Perks = () => {
             <Container>
                 <div className="flex flex-col items-center text-center max-w-3xl mx-auto">
 
-                    <SectionBadge title="Why Edge OS" />
+                    <SectionBadge title="Why ProdMate" />
 
                     <h2 className="text-2xl md:text-4xl lg:text-5xl font-heading font-medium !leading-snug mt-6 text-foreground">
                         Your AI copilot for product development

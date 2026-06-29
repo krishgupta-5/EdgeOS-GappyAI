@@ -150,7 +150,7 @@ export default function SharePageClient({ shareId, slug }: { shareId: string; sl
           <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: T.textMuted }}>
             <span>Shared by <strong style={{ color: "rgba(255,255,255,0.85)", fontWeight: 500 }}>{metadata.ownerName}</strong></span>
             <span style={{ color: T.borderHover }}>|</span>
-            <span>Created with <strong style={{ color: "rgba(255,255,255,0.85)", fontWeight: 500 }}>EdgeOS</strong></span>
+            <span>Created with <strong style={{ color: "rgba(255,255,255,0.85)", fontWeight: 500 }}>ProdMate</strong></span>
           </div>
         </div>
 

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 
-// ── EdgeOS Design Tokens (Onyx Minimal Palette) ──────────
+// ── ProdMate Design Tokens (ProdMate Minimal Palette) ──────────
 const T = {
   bg: "#09090b",
   surface: "#121214",

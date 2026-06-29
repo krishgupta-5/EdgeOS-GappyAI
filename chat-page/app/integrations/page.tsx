@@ -544,7 +544,7 @@ export default function IntegrationsPanel() {
                 Integrations
               </h1>
               <p style={{ color: T.textMuted, fontSize: "15px", margin: "8px 0 0 0", maxWidth: "600px", lineHeight: "1.6" }}>
-                Connect EdgeOS to your existing toolchain. Export generated planning artifacts and documentation directly into your team's workspace.
+                Connect ProdMate to your existing toolchain. Export generated planning artifacts and documentation directly into your team's workspace.
               </p>
             </div>
 

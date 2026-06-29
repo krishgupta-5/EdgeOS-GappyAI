@@ -1,6 +1,6 @@
 /**
  * /api/generate/route.ts
- * Edge-OS — Thin API controller for artifact generation.
+ * ProdMate — Thin API controller for artifact generation.
  *
  * This is the SLIM controller that replaced the original 3,614-line monolith.
  * All business logic lives in lib/pipeline/*.ts modules.

@@ -70,7 +70,7 @@ export default function IntegrationsPanel() {
         <div style={{ marginBottom: "32px" }}>
           <h2 style={{ fontSize: "28px", fontWeight: 500, letterSpacing: "-0.02em", margin: 0 }}>Integrations</h2>
           <p style={{ fontSize: "14px", color: T_tokens.textMuted, marginTop: "8px", lineHeight: "1.6" }}>
-            Connect Edge OS with your favorite third-party services.
+            Connect ProdMate with your favorite third-party services.
           </p>
         </div>
 

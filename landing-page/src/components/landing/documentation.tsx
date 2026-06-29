@@ -15,7 +15,7 @@ const DOCS_NAV = [
         title: "Overview",
         items: [
             { name: "Introduction", href: "#introduction" },
-            { name: "What is Edge OS?", href: "#what-is-edge-os" },
+            { name: "What is ProdMate?", href: "#what-is-ProdMate" },
             { name: "Who Is It For?", href: "#who-is-it-for" },
         ]
     },
@@ -127,14 +127,14 @@ const Documentation = () => {
                     </div>
 
                     <h1 id="introduction" className="text-3xl md:text-5xl font-heading font-medium text-foreground tracking-tight scroll-mt-32">
-                        Introduction to Edge OS
+                        Introduction to ProdMate
                     </h1>
                     
                     <p className="text-lg md:text-xl text-muted-foreground mt-6 leading-relaxed">
-                        Edge OS is an AI-powered product development planning platform that helps founders, developers, and product teams transform ideas into structured development plans.
+                        ProdMate is an AI-powered product development planning platform that helps founders, developers, and product teams transform ideas into structured development plans.
                     </p>
                     <p className="text-base text-muted-foreground mt-4 leading-relaxed">
-                        Instead of starting from a blank page, Edge OS generates the planning artifacts needed to move from concept to execution, including product requirements, roadmaps, user stories, API designs, database schemas, architecture plans, testing strategies, and deployment planning.
+                        Instead of starting from a blank page, ProdMate generates the planning artifacts needed to move from concept to execution, including product requirements, roadmaps, user stories, API designs, database schemas, architecture plans, testing strategies, and deployment planning.
                     </p>
 
                     <div className="w-full h-px bg-border/40 my-12" />
@@ -142,20 +142,20 @@ const Documentation = () => {
                     {/* Prose Styling Content */}
                     <div className="flex flex-col gap-16 text-muted-foreground leading-relaxed">
                         
-                        {/* Section: What is Edge OS */}
-                        <section id="what-is-edge-os" className="flex flex-col gap-5 scroll-mt-32">
-                            <h2 className="text-2xl md:text-3xl font-medium text-foreground tracking-tight">What is Edge OS?</h2>
+                        {/* Section: What is ProdMate */}
+                        <section id="what-is-ProdMate" className="flex flex-col gap-5 scroll-mt-32">
+                            <h2 className="text-2xl md:text-3xl font-medium text-foreground tracking-tight">What is ProdMate?</h2>
                             <p>
                                 Building software products requires extensive planning before development begins. Teams often spend days or weeks creating requirement documents, defining features, designing APIs, planning databases, and aligning stakeholders.
                             </p>
                             <p>
-                                Edge OS simplifies this process by generating structured planning outputs from a simple product idea. Describe what you want to build, and Edge OS helps create the foundation required for development.
+                                ProdMate simplifies this process by generating structured planning outputs from a simple product idea. Describe what you want to build, and ProdMate helps create the foundation required for development.
                             </p>
                         </section>
 
                         {/* Section: Who Is It For? */}
                         <section id="who-is-it-for" className="flex flex-col gap-6 scroll-mt-32">
-                            <h2 className="text-2xl md:text-3xl font-medium text-foreground tracking-tight">Who Is Edge OS For?</h2>
+                            <h2 className="text-2xl md:text-3xl font-medium text-foreground tracking-tight">Who Is ProdMate For?</h2>
                             
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                                 <div className="p-5 rounded-lg bg-foreground/[0.02] border border-border/50">
@@ -267,7 +267,7 @@ const Documentation = () => {
                                 <div className="relative">
                                     <div className="absolute -left-[41px] top-1 w-6 h-6 rounded-full bg-background border border-border flex items-center justify-center text-xs font-mono text-foreground">2</div>
                                     <h3 className="text-lg font-medium text-foreground">Generate Planning Artifacts</h3>
-                                    <p className="mt-2">Edge OS analyzes your idea and generates product requirements, roadmaps, user stories, API specifications, database schemas, architecture plans, and testing plans.</p>
+                                    <p className="mt-2">ProdMate analyzes your idea and generates product requirements, roadmaps, user stories, API specifications, database schemas, architecture plans, and testing plans.</p>
                                 </div>
 
                                 <div className="relative">
@@ -288,13 +288,13 @@ const Documentation = () => {
                         <section id="example-output" className="flex flex-col gap-5 mt-4 scroll-mt-32">
                             <h2 className="text-2xl font-medium text-foreground tracking-tight">Example Output</h2>
                             <p>
-                                When you input a Product Idea like <strong>"Create a clinic appointment management platform"</strong>, Edge OS instantly generates a complete suite of documents.
+                                When you input a Product Idea like <strong>"Create a clinic appointment management platform"</strong>, ProdMate instantly generates a complete suite of documents.
                             </p>
                             
                             <div className="mt-4 rounded-xl border border-border bg-[#0a0a0a] overflow-hidden shadow-2xl">
                                 <div className="flex items-center px-4 py-3 border-b border-white/5 bg-white/[0.02]">
                                     <Terminal className="w-4 h-4 mr-2 text-muted-foreground" />
-                                    <span className="text-xs text-muted-foreground font-mono">edge-os-output.json</span>
+                                    <span className="text-xs text-muted-foreground font-mono">ProdMate-output.json</span>
                                 </div>
                                 <div className="p-6 overflow-x-auto">
                                     <pre className="text-sm font-mono text-white/80 leading-loose">
@@ -329,7 +329,7 @@ const Documentation = () => {
                                 <li><strong>Begin development</strong> with a structured, professional plan.</li>
                             </ul>
                             <p className="mt-4 font-medium text-foreground">
-                                Edge OS helps teams move from idea to execution with clarity, consistency, and AI-assisted planning.
+                                ProdMate helps teams move from idea to execution with clarity, consistency, and AI-assisted planning.
                             </p>
                         </section>
 
@@ -337,7 +337,7 @@ const Documentation = () => {
                         <section id="current-status" className="flex flex-col gap-4 p-6 rounded-xl bg-primary/5 border border-primary/20 scroll-mt-32 mt-4">
                             <h3 className="text-lg font-medium text-primary">Current Status</h3>
                             <p className="text-sm text-foreground/80">
-                                Edge OS is currently available in <strong>Early Access</strong>. The platform focuses heavily on planning and documentation generation. Future versions may include collaboration, workflow integrations, and advanced automation capabilities.
+                                ProdMate is currently available in <strong>Early Access</strong>. The platform focuses heavily on planning and documentation generation. Future versions may include collaboration, workflow integrations, and advanced automation capabilities.
                             </p>
                         </section>
 

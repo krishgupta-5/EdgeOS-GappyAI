@@ -69,7 +69,7 @@ const Capabilities = () => {
                     
                     <p className="text-base md:text-lg text-center text-foreground/60 mt-6 leading-relaxed">
                         From product requirements to architecture, APIs, testing and deployment planning —
-                        Edge-OS helps teams move from idea to execution with structured AI-generated outputs.
+                        ProdMate helps teams move from idea to execution with structured AI-generated outputs.
                     </p>
                 </div>
             </Container>

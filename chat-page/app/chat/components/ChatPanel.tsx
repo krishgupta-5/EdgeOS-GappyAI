@@ -19,7 +19,7 @@ import InputArea from "@/app/chat/components/InputArea";
 import FinalSummaryCard from "@/app/chat/components/FinalSummaryCard";
 import type { ProgressEvent } from "@/lib/pipeline/types";
 
-// ── EdgeOS Design Tokens (Onyx Minimal Palette) ──────────
+// ── ProdMate Design Tokens (ProdMate Minimal Palette) ──────────
 const T = {
   bg: "#09090b",
   surface: "#121214",
@@ -214,9 +214,9 @@ export default function ChatPanel({
 
   useIsomorphicLayoutEffect(() => {
     if (typeof window !== "undefined") {
-      const img = localStorage.getItem("edge-os-user-image");
+      const img = localStorage.getItem("ProdMate-user-image");
       if (img) setCachedImageUrl(img);
-      const name = localStorage.getItem("edge-os-user-name");
+      const name = localStorage.getItem("ProdMate-user-name");
       if (name) setCachedDisplayName(name);
     }
   }, []);
@@ -224,7 +224,7 @@ export default function ChatPanel({
   useEffect(() => {
     if (user?.imageUrl) {
       setCachedImageUrl(user.imageUrl);
-      localStorage.setItem("edge-os-user-image", user.imageUrl);
+      localStorage.setItem("ProdMate-user-image", user.imageUrl);
     }
     
     if (user?.firstName || user?.primaryEmailAddress?.emailAddress) {
@@ -232,7 +232,7 @@ export default function ChatPanel({
         ? `${user.firstName}${user.lastName ? " " + user.lastName : ""}`
         : (user.primaryEmailAddress?.emailAddress ?? "You");
       setCachedDisplayName(name);
-      localStorage.setItem("edge-os-user-name", name);
+      localStorage.setItem("ProdMate-user-name", name);
     }
   }, [user]);
 
@@ -598,7 +598,7 @@ export default function ChatPanel({
     else if (!hasGeneratedConfig) { artifact = "initial"; isModify = false; }
     else { artifact = "markdown"; isModify = false; }
     const currentSessionId = sessionId || getSessionId() || resetSessionId();
-    if (!sessionId) { window.history.replaceState(null, "", `/chat/${currentSessionId}`); sessionStorage.setItem("edge-os-session-id", currentSessionId); }
+    if (!sessionId) { window.history.replaceState(null, "", `/chat/${currentSessionId}`); sessionStorage.setItem("ProdMate-session-id", currentSessionId); }
     
     // Format chat history for /api/chat context
     const chatHistory = messages.map(m => ({ role: m.role, content: m.content }));
@@ -781,7 +781,7 @@ export default function ChatPanel({
                 {/* Dashboard Header */}
                 <div style={{ marginBottom: "32px", animation: "slideUp 0.3s ease-out both" }}>
                   <span style={{ fontSize: "13px", fontWeight: 500, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.04em", display: "block", marginBottom: "8px" }}>
-                    Edge OS
+                    ProdMate
                   </span>
                   <h1 style={{
                     fontSize: "24px",
@@ -801,7 +801,7 @@ export default function ChatPanel({
                     margin: "0",
                     fontFamily: T.font,
                   }}>
-                    Describe your software idea and Edge OS will generate product requirements, roadmaps, user stories, API designs, database schemas, architecture plans and technical documentation.
+                    Describe your software idea and ProdMate will generate product requirements, roadmaps, user stories, API designs, database schemas, architecture plans and technical documentation.
                   </p>
                 </div>
 
@@ -884,7 +884,7 @@ export default function ChatPanel({
                   <div style={{ display: "flex", flexDirection: "column", width: "100%", minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
                       <span style={{ fontSize: "13px", fontWeight: 500, color: T.text, fontFamily: T.font }}>
-                        {msg.role === "user" ? displayName : "Edge OS AI"}
+                        {msg.role === "user" ? displayName : "ProdMate AI"}
                       </span>
                       <span style={{ fontSize: "12px", color: T.textHint, fontFamily: T.font }}>{msg.timestamp}</span>
                     </div>
@@ -1014,7 +1014,7 @@ export default function ChatPanel({
                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                         <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                       </svg>
-                      This is a shared EdgeOS conversation. Fork this project to continue working on it.
+                      This is a shared ProdMate conversation. Fork this project to continue working on it.
                     </span>
                   </div>
                 </>

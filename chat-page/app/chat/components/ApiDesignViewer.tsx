@@ -4,7 +4,7 @@ import React from "react";
 import CodeRenderer from "@/app/chat/components/CodeRenderer";
 import MarkdownRenderer from "@/app/chat/components/MarkdownRenderer";
 
-// ── EdgeOS Design Tokens (Onyx Minimal Palette) ──────────
+// ── ProdMate Design Tokens (ProdMate Minimal Palette) ──────────
 const T = {
   bg: "#09090b",
   codeBg: "#050505",

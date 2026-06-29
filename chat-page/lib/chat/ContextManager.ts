@@ -14,7 +14,7 @@ export function buildConversationalContext(
   const messages: GroqMessage[] = [];
 
   // Master System Prompt for Conversation
-  let systemContent = `You are EdgeOS, an elite AI Software Architect. 
+  let systemContent = `You are ProdMate, an elite AI Software Architect. 
 Your goal is to help the user refine, understand, and iterate on their project.
 You have already generated the initial architecture and codebase.
 

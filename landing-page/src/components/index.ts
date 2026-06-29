@@ -18,6 +18,7 @@ import CTA from "./landing/cta";
 import Footer from "./landing/footer";
 import HowItWorks from "./landing/how-it-works";
 import Documentation from "./landing/documentation";
+import Integrations from "./landing/integrations";
 
 export {
     Icons,
@@ -38,4 +39,5 @@ export {
     Providers,
     HowItWorks,
     Documentation,
+    Integrations,
 };

@@ -25,7 +25,7 @@ export default function ChatSession() {
   // returns the correct value throughout this chat session.
   useEffect(() => {
     if (sessionId && typeof window !== "undefined") {
-      sessionStorage.setItem("edge-os-session-id", sessionId);
+      sessionStorage.setItem("ProdMate-session-id", sessionId);
     }
   }, [sessionId]);
 

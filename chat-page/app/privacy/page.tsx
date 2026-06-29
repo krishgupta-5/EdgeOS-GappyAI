@@ -166,7 +166,7 @@ export default function PrivacyPolicy() {
 
             <div id="introduction">
               <PolicySection title="1. Introduction">
-                EdgeOS ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our developer platform and AI services.
+                ProdMate ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our developer platform and AI services.
               </PolicySection>
             </div>
 
@@ -209,7 +209,7 @@ export default function PrivacyPolicy() {
                   borderRadius: "6px", border: `1px solid ${T.border}`, fontFamily: "Consolas, 'Courier New', monospace",
                   fontSize: "13px", color: T.text, display: "inline-block"
                 }}>
-                  privacy@edgeos.com
+                  privacy@ProdMate.com
                 </div>
               </PolicySection>
             </div>

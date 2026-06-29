@@ -180,7 +180,7 @@ export default function TermsOfService() {
 
             <div id="acceptance">
               <PolicySection title="1. Acceptance of Terms">
-                By accessing and using EdgeOS ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.
+                By accessing and using ProdMate ("the Service"), you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to abide by the above, please do not use this service.
               </PolicySection>
             </div>
 
@@ -188,7 +188,7 @@ export default function TermsOfService() {
 
             <div id="description">
               <PolicySection title="2. Description of Service">
-                EdgeOS is a developer platform that provides AI-powered coding assistance, project management tools, and collaborative workspace features. The service is offered on a subscription basis with different tiers available.
+                ProdMate is a developer platform that provides AI-powered coding assistance, project management tools, and collaborative workspace features. The service is offered on a subscription basis with different tiers available.
               </PolicySection>
             </div>
 
@@ -212,7 +212,7 @@ export default function TermsOfService() {
 
             <div id="ip">
               <PolicySection title="5. Intellectual Property Rights">
-                You retain ownership of all intellectual property rights in the code and content you create using our service. We retain ownership of all rights to the EdgeOS platform, software, and proprietary technology.
+                You retain ownership of all intellectual property rights in the code and content you create using our service. We retain ownership of all rights to the ProdMate platform, software, and proprietary technology.
               </PolicySection>
             </div>
 
@@ -236,7 +236,7 @@ export default function TermsOfService() {
 
             <div id="liability">
               <PolicySection title="8. Limitation of Liability">
-                To the maximum extent permitted by law, EdgeOS shall not be liable for any indirect, incidental, special, or consequential damages resulting from your use of the service.
+                To the maximum extent permitted by law, ProdMate shall not be liable for any indirect, incidental, special, or consequential damages resulting from your use of the service.
               </PolicySection>
             </div>
             
@@ -266,7 +266,7 @@ export default function TermsOfService() {
                   borderRadius: "6px", border: `1px solid ${T.border}`, fontFamily: "Consolas, 'Courier New', monospace",
                   fontSize: "13px", color: T.text, display: "inline-block"
                 }}>
-                  legal@edgeos.com
+                  legal@ProdMate.com
                 </div>
               </PolicySection>
             </div>

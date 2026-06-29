@@ -1,6 +1,6 @@
 /**
  * lib/pipeline/types.ts
- * Shared TypeScript interfaces for the EdgeOS artifact generation pipeline.
+ * Shared TypeScript interfaces for the ProdMate artifact generation pipeline.
  */
 
 // ─────────────────────────────────────────────

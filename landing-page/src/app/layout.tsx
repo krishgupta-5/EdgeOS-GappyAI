@@ -7,8 +7,8 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
     title: {
-        default: "Edge OS",
-        template: "%s | Edge OS",
+        default: "ProdMate",
+        template: "%s | ProdMate",
     },
     description: "AI-powered platform for creators and businesses.",
     icons: [

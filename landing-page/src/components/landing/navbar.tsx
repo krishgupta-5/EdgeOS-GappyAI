@@ -164,8 +164,8 @@ const Navbar = () => {
                             </div>
                         </div>
                         <div className="items-center flex gap-3 lg:gap-5">
-                            <Button 
-                                variant="white" 
+                            <Button
+                                variant="white"
                                 onClick={() => {
                                     const chatUrl = `${window.location.protocol}//${window.location.hostname}:3001`;
                                     window.location.href = chatUrl;

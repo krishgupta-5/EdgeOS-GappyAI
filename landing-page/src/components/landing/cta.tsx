@@ -23,7 +23,7 @@ const CTA = () => {
 
                         <p className="text-base md:text-lg text-center text-accent-foreground/80 max-w-2xl mx-auto mt-6">
                             Stop spending hours creating roadmaps, PRDs, APIs and technical plans.
-                            Let Edge-OS generate the foundation of your next software product in minutes.
+                            Let ProdMate generate the foundation of your next software product in minutes.
                         </p>
 
                         <div className="flex flex-col md:flex-row items-center justify-center w-full gap-6 mt-8">

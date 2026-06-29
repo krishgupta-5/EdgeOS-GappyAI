@@ -1,4 +1,4 @@
-import { Background, Connect, Container, CTA, Features, Hero, Perks, Pricing, Reviews, Wrapper } from "@/components";
+import { Background, Connect, Container, CTA, Features, Hero, Perks, Pricing, Reviews, Wrapper, Integrations } from "@/components";
 import { Spotlight } from "@/components/ui/spotlight";
 
 const HomePage = () => {
@@ -16,6 +16,7 @@ const HomePage = () => {
                 <section id="features">
                     <Features />
                 </section>
+                <Integrations />
                 <Perks />
                 <section id="pricing">
                     <Pricing />

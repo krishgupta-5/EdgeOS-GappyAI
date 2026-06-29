@@ -11,28 +11,28 @@ export async function generateMetadata(
   
   try {
     const doc = await db.collection("shared_chats").doc(resolvedParams.shareId).get();
-    if (!doc.exists) return { title: 'Not Found | EdgeOS' };
+    if (!doc.exists) return { title: 'Not Found | ProdMate' };
     
     const data = doc.data()!;
-    if (!data.isPublic) return { title: 'Not Available | EdgeOS' };
+    if (!data.isPublic) return { title: 'Not Available | ProdMate' };
 
     return {
-      title: `${data.title} | Shared via EdgeOS`,
-      description: `Shared software planning project generated with EdgeOS. Created by ${data.ownerName}.`,
+      title: `${data.title} | Shared via ProdMate`,
+      description: `Shared software planning project generated with ProdMate. Created by ${data.ownerName}.`,
       openGraph: {
-        title: `${data.title} | Shared via EdgeOS`,
-        description: `Shared software planning project generated with EdgeOS.`,
-        siteName: 'EdgeOS',
+        title: `${data.title} | Shared via ProdMate`,
+        description: `Shared software planning project generated with ProdMate.`,
+        siteName: 'ProdMate',
         type: 'website',
       },
       twitter: {
         card: 'summary_large_image',
-        title: `${data.title} | Shared via EdgeOS`,
-        description: `Shared software planning project generated with EdgeOS.`,
+        title: `${data.title} | Shared via ProdMate`,
+        description: `Shared software planning project generated with ProdMate.`,
       }
     };
   } catch (e) {
-    return { title: 'Shared Chat | EdgeOS' };
+    return { title: 'Shared Chat | ProdMate' };
   }
 }
 
