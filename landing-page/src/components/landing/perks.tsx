@@ -7,19 +7,18 @@ import { SectionBadge } from "../ui/section-bade";
 const Perks = () => {
     return (
         <div className="flex flex-col items-center justify-center py-12 md:py-16 lg:py-24 w-full">
-            
+
             <Container>
                 <div className="flex flex-col items-center text-center max-w-3xl mx-auto">
 
                     <SectionBadge title="Why ProdMate" />
 
                     <h2 className="text-2xl md:text-4xl lg:text-5xl font-heading font-medium !leading-snug mt-6 text-foreground">
-                        Your AI copilot for product development
+                        Everything you need to build better software
                     </h2>
 
                     <p className="text-base md:text-lg text-center text-foreground/60 mt-6">
-                        Generate roadmaps, APIs, database schemas, architecture plans,
-                        testing strategies and technical documentation from a single idea.
+                        Plan smarter with AI. Generate PRDs, roadmaps, architecture, APIs, database schemas, and technical documentation—all in one workspace.
                     </p>
 
                 </div>

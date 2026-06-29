@@ -229,20 +229,13 @@ const Features = () => {
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1000px] h-[500px] bg-primary/5 blur-[120px] rounded-[100%] pointer-events-none -z-20"></div>
 
             <Container>
-                <div className="flex flex-col items-center max-w-3xl mx-auto text-center">
+                <div className="flex flex-col items-center max-w-4xl mx-auto text-center">
 
-                    <SectionBadge title="AI Product Development" />
+                    <SectionBadge title="Everything You Need" />
 
                     <h2 className="mt-6 text-3xl font-medium md:text-5xl lg:text-6xl font-heading !leading-tight tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white to-white/70">
-                        Plan, structure and accelerate software product development
+                        One workspace for your entire product development lifecycle
                     </h2>
-
-                    <p className="mt-6 text-base text-center md:text-lg text-muted-foreground max-w-2xl leading-relaxed">
-                        Generate product roadmaps, technical documentation,
-                        APIs, database schemas, CI/CD pipelines, workflows
-                        and engineering plans — all designed to help teams
-                        move from idea to execution faster.
-                    </p>
 
                 </div>
             </Container>
@@ -268,10 +261,10 @@ const Features = () => {
 
                                     <div className="relative z-10 px-8">
                                         <h4 className="text-2xl font-medium font-heading tracking-tight">
-                                            AI-powered planning
+                                            AI Product Planning
                                         </h4>
-                                        <p className="max-w-md mt-3 text-sm md:text-base text-muted-foreground/80 leading-relaxed">
-                                            Turn vague product ideas into structured development plans within seconds using advanced contextual AI.
+                                        <p className="max-w-md mt-3 text-sm md:text-base text-muted-foreground/80 leading-relaxed mx-auto">
+                                            Describe your idea in plain English and instantly generate a complete product plan ready for engineering.
                                         </p>
                                     </div>
                                     <Ripple className="opacity-40" />
@@ -286,11 +279,10 @@ const Features = () => {
                                     </div>
                                     <div className="flex flex-col p-6 lg:p-8 bg-[#09090b]/50 backdrop-blur-sm z-10">
                                         <h4 className="text-xl font-medium font-heading heading tracking-tight group-hover:text-primary transition-colors">
-                                            Architecture & system design
+                                            System Architecture
                                         </h4>
                                         <p className="mt-2 text-sm text-muted-foreground/80 leading-relaxed">
-                                            Generate scalable software architecture, workflows
-                                            and complex engineering blueprints.
+                                            Design scalable software architecture, define services, and build a solid technical foundation.
                                         </p>
                                     </div>
                                 </div>
@@ -310,11 +302,10 @@ const Features = () => {
                                     </div>
                                     <div className="flex flex-col p-6 lg:p-8 mt-auto bg-[#09090b]/50 backdrop-blur-sm">
                                         <h4 className="text-xl font-medium font-heading heading tracking-tight group-hover:text-primary transition-colors">
-                                            Roadmaps & user stories
+                                            Roadmaps & User Stories
                                         </h4>
                                         <p className="mt-2 text-sm text-muted-foreground/80 leading-relaxed">
-                                            Create detailed product roadmaps, feature planning
-                                            and sprint-ready user stories instantly.
+                                            Generate product roadmaps, milestones, epics, and sprint-ready user stories.
                                         </p>
                                     </div>
                                 </div>
@@ -324,19 +315,28 @@ const Features = () => {
                             <div className="grid gap-5 grid-rows-2 lg:gap-6 h-full">
 
                                 <MagicCard particles={true} className="flex flex-col items-start w-full bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 h-full border-white/5">
-                                    <div className="relative items-center justify-center w-full h-full p-8 overflow-hidden rounded-2xl min-h-[200px] group">
+                                    <div className="relative flex items-center justify-center w-full h-full p-8 overflow-hidden rounded-2xl min-h-[200px] group">
                                         <CentralScannerVisual />
                                         <p className="relative z-20 text-sm font-medium leading-relaxed text-center md:text-base text-muted-foreground/90 group-hover:text-white transition-colors duration-500">
-                                            Plan products faster with AI-assisted technical documentation,
-                                            database schemas, APIs, and engineering workflows.
-                                            Structure your lifecycle with organized execution guidance.
+                                            Generate every planning artifact—from PRDs and docs to architecture, APIs, and database schemas.
                                         </p>
                                     </div>
                                 </MagicCard>
 
                                 <MagicCard particles={true} className="flex flex-col items-start w-full bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 h-full border-white/5">
-                                    <div className="relative w-full h-full rounded-2xl overflow-hidden min-h-[200px] bg-black/40 group">
-                                        <RingsVisual />
+                                    <div className="flex flex-col w-full h-full rounded-2xl overflow-hidden min-h-[200px] group">
+                                        <div className="relative w-full flex-1 bg-black/40 border-b border-white/5 min-h-[140px] overflow-hidden">
+                                            <RingsVisual />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-0 opacity-50 group-hover:opacity-20 transition-opacity"></div>
+                                        </div>
+                                        <div className="flex flex-col p-6 mt-auto bg-[#09090b]/50 backdrop-blur-sm z-10 text-center">
+                                            <h4 className="text-xl font-medium font-heading heading tracking-tight group-hover:text-primary transition-colors">
+                                                AI Project Brain
+                                            </h4>
+                                            <p className="mt-2 text-sm text-muted-foreground/80 leading-relaxed">
+                                                Every document stays connected. Update one requirement and AI keeps your entire project consistent.
+                                            </p>
+                                        </div>
                                     </div>
                                 </MagicCard>
 
@@ -346,10 +346,10 @@ const Features = () => {
                                 <div className="flex flex-col w-full h-full rounded-2xl overflow-hidden min-h-[420px] group">
                                     <div className="flex flex-col p-6 lg:p-8 mb-auto bg-[#09090b]/50 backdrop-blur-sm z-10">
                                         <h4 className="text-xl font-medium font-heading heading tracking-tight group-hover:text-primary transition-colors">
-                                            Developer ecosystem
+                                            💬 AI Project Assistant
                                         </h4>
                                         <p className="mt-2 text-sm text-muted-foreground/80 leading-relaxed">
-                                            Designed to integrate perfectly into modern product and complex engineering workflows.
+                                            Chat with your project to refine requirements, add features, or update architecture without starting over.
                                         </p>
                                     </div>
                                     <div className="relative w-full flex-1 bg-black/40 border-t border-white/5 min-h-[200px] overflow-hidden">
@@ -374,10 +374,10 @@ const Features = () => {
                                     </div>
                                     <div className="flex flex-col p-6 lg:p-8 mt-auto bg-[#09090b]/50 backdrop-blur-sm z-10">
                                         <h4 className="text-xl font-medium font-heading heading tracking-tight group-hover:text-primary transition-colors">
-                                            Technical documentation
+                                            Technical Documentation
                                         </h4>
                                         <p className="mt-2 text-sm text-muted-foreground/80 leading-relaxed">
-                                            Generate clean and structured markdown documentation effortlessly.
+                                            Generate clean, structured documentation including PRDs, specs, and deployment guides.
                                         </p>
                                     </div>
                                 </div>
@@ -391,11 +391,10 @@ const Features = () => {
                                     </div>
                                     <div className="flex flex-col p-6 lg:p-8 mt-auto bg-[#09090b]/50 backdrop-blur-sm z-10">
                                         <h4 className="text-xl font-medium font-heading heading tracking-tight group-hover:text-primary transition-colors">
-                                            API & database planning
+                                            Architecture, APIs & Database
                                         </h4>
                                         <p className="mt-2 text-sm text-muted-foreground/80 leading-relaxed">
-                                            Design resilient APIs, database schemas and highly scalable backend
-                                            structures with AI assistance.
+                                            Generate scalable database schemas, REST APIs, and backend architecture in minutes.
                                         </p>
                                     </div>
                                 </div>

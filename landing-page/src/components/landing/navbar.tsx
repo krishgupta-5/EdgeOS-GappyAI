@@ -65,7 +65,7 @@ const MobileMenu = ({ isOpen, setIsOpen }: MobileMenuProps) => {
         <div
             ref={ref}
             className={cn(
-                "absolute top-16 inset-x-0 size-full p-4 z-[9999] bg-transparent flex flex-1",
+                "w-full h-auto px-4 pt-2 pb-6 z-[9999] bg-transparent flex-col mt-4",
                 isOpen ? "flex" : "hidden"
             )}
         >
@@ -80,10 +80,10 @@ const MobileMenu = ({ isOpen, setIsOpen }: MobileMenuProps) => {
                 }}
                 className="size-full flex flex-col justify-start"
             >
-                <ul className="flex flex-col items-start flex-1 w-full space-y-1 pt-2">
+                <ul className="flex flex-col items-start flex-1 w-full space-y-2 pt-2">
                     <li
                         onClick={() => setIsOpen(false)}
-                        className="w-full px-4 py-3 text-base font-medium transition-all duration-200 rounded-xl cursor-pointer text-foreground/80 hover:text-foreground text-start hover:bg-white/5"
+                        className="w-full px-4 py-3 text-lg font-medium transition-all duration-200 rounded-xl cursor-pointer text-foreground/80 hover:text-foreground text-start hover:bg-white/5"
                     >
                         <Link href="/how-it-works" className="flex items-center w-full text-start">
                             How it works
@@ -92,7 +92,7 @@ const MobileMenu = ({ isOpen, setIsOpen }: MobileMenuProps) => {
 
                     <li
                         onClick={() => setIsOpen(false)}
-                        className="w-full px-4 py-3 text-base font-medium transition-all duration-200 rounded-xl cursor-pointer text-foreground/80 hover:text-foreground text-start hover:bg-white/5"
+                        className="w-full px-4 py-3 text-lg font-medium transition-all duration-200 rounded-xl cursor-pointer text-foreground/80 hover:text-foreground text-start hover:bg-white/5"
                     >
                         <Link href="/#features" className="flex items-center w-full text-start">
                             Features
@@ -101,7 +101,7 @@ const MobileMenu = ({ isOpen, setIsOpen }: MobileMenuProps) => {
 
                     <li
                         onClick={() => setIsOpen(false)}
-                        className="w-full px-4 py-3 text-base font-medium transition-all duration-200 rounded-xl cursor-pointer text-foreground/80 hover:text-foreground text-start hover:bg-white/5"
+                        className="w-full px-4 py-3 text-lg font-medium transition-all duration-200 rounded-xl cursor-pointer text-foreground/80 hover:text-foreground text-start hover:bg-white/5"
                     >
                         <Link href="/#pricing" className="flex items-center w-full text-start">
                             Pricing
@@ -110,11 +110,25 @@ const MobileMenu = ({ isOpen, setIsOpen }: MobileMenuProps) => {
 
                     <li
                         onClick={() => setIsOpen(false)}
-                        className="w-full px-4 py-3 text-base font-medium transition-all duration-200 rounded-xl cursor-pointer text-foreground/80 hover:text-foreground text-start hover:bg-white/5"
+                        className="w-full px-4 py-3 text-lg font-medium transition-all duration-200 rounded-xl cursor-pointer text-foreground/80 hover:text-foreground text-start hover:bg-white/5"
                     >
                         <Link href="/docs" className="flex items-center w-full text-start">
                             Documentation
                         </Link>
+                    </li>
+
+                    <li className="w-full mt-4 pt-4 border-t border-white/10">
+                        <Button
+                            variant="white"
+                            className="w-full rounded-full py-6 text-lg"
+                            onClick={() => {
+                                const chatUrl = `${window.location.protocol}//${window.location.hostname}:3000`;
+                                window.location.href = chatUrl;
+                                setIsOpen(false);
+                            }}
+                        >
+                            Start for free
+                        </Button>
                     </li>
                 </ul>
             </motion.div>
@@ -150,11 +164,14 @@ const Navbar = () => {
             <header
                 className={cn(
                     "fixed top-4 inset-x-0 mx-auto max-w-6xl px-4 md:px-12 z-[100] transform transition-all duration-500 ease-out",
-                    isOpen ? "h-[calc(100%-24px)]" : "h-16 md:h-20"
+                    isOpen ? "h-auto" : "h-16 md:h-20"
                 )}
             >
-                <Wrapper className="h-full bg-white/5 backdrop-blur-3xl backdrop-saturate-150 rounded-2xl md:rounded-[2rem] border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.1),inset_0_1px_0_0_rgba(255,255,255,0.1)] px-5 md:px-8 flex items-center justify-start transition-all duration-500 relative z-[100]">
-                    <div className="flex items-center justify-between w-full sticky my-auto inset-x-0">
+                <Wrapper className={cn(
+                    "w-full bg-white/5 backdrop-blur-3xl backdrop-saturate-150 rounded-2xl md:rounded-[2rem] border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.1),inset_0_1px_0_0_rgba(255,255,255,0.1)] px-5 md:px-8 transition-all duration-500 relative z-[100]",
+                    isOpen ? "flex flex-col items-start justify-start py-4 pb-6" : "flex items-center justify-start h-full"
+                )}>
+                    <div className="flex items-center justify-between w-full relative">
                         <div className="flex items-center flex-1 lg:flex-none">
                             <Link href="/" className="text-lg font-semibold text-foreground transition-transform hover:scale-105 duration-300 ease-out">
                                 <Icons.icon className="w-auto h-7 md:h-8 drop-shadow-md" />
@@ -167,7 +184,7 @@ const Navbar = () => {
                             <Button
                                 variant="white"
                                 onClick={() => {
-                                    const chatUrl = `${window.location.protocol}//${window.location.hostname}:3001`;
+                                    const chatUrl = `${window.location.protocol}//${window.location.hostname}:3000`;
                                     window.location.href = chatUrl;
                                 }}
                                 className="hidden sm:flex group rounded-full px-6 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:-translate-y-0.5"

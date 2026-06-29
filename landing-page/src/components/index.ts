@@ -8,7 +8,7 @@ import Providers from "./global/providers";
 
 import Hero from "./landing/hero";
 import Navbar from "./landing/navbar";
-import Companies from "./landing/companies";
+
 import Features from "./landing/features";
 import Connect from "./landing/connect";
 import Perks from "./landing/perks";
@@ -28,7 +28,7 @@ export {
     Background,
     Hero,
     Navbar,
-    Companies,
+
     Features,
     Connect,
     Perks,

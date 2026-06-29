@@ -1,12 +1,8 @@
-import { Background, Documentation, Wrapper } from "@/components";
+import Documentation from "@/components/landing/documentation";
 
 const DocsPage = () => {
     return (
-        <Background>
-            <Wrapper className="py-20 relative">
-                <Documentation />
-            </Wrapper>
-        </Background>
+        <Documentation />
     )
 };
 

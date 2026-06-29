@@ -22,7 +22,7 @@ const Footer = () => {
                     />
 
                     {/* Brand Section */}
-                    <div className="flex flex-col items-start max-w-xs">
+                    <div className="flex flex-col items-start w-full sm:max-w-xs">
 
                         <div className="flex items-center gap-2">
                             <Icons.icon className="w-5 h-5" />
@@ -44,7 +44,7 @@ const Footer = () => {
                     </div>
 
                     {/* Footer Links */}
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-8 w-full max-w-md mt-10 md:mt-0">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 sm:gap-8 w-full md:max-w-lg mt-10 md:mt-0">
                         {FOOTER_LINKS?.map((section, index) => (
                             <div key={index} className="flex flex-col gap-4">
 

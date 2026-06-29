@@ -10,16 +10,14 @@ const Connect = () => {
             <Container>
                 <div className="flex flex-col items-center text-center max-w-2xl mx-auto">
 
-                    <SectionBadge title="AI Product Planning" />
+                    <SectionBadge title="AI Workspace" />
 
                     <h2 className="text-2xl md:text-4xl lg:text-5xl font-heading font-medium !leading-snug mt-6">
-                        Everything you need to plan better products
+                        One workspace. Every planning artifact.
                     </h2>
 
                     <p className="text-base md:text-lg text-center text-accent-foreground/80 mt-6">
-                        Generate roadmaps, APIs, database schemas, architecture,
-                        testing plans and technical documentation — all designed
-                        to help teams plan and structure software products faster.
+                        Plan, design and organize your software project in one place. Generate everything from PRDs and roadmaps to architecture, APIs, database schemas, testing plans and technical documentation—all connected in a single AI-powered workspace.
                     </p>
 
                 </div>

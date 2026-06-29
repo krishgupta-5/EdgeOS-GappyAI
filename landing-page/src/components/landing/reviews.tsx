@@ -5,51 +5,51 @@ import { SectionBadge } from "../ui/section-bade";
 const CAPABILITIES = [
     {
         title: "Product Requirements",
-        description: "Generate structured PRDs from simple ideas."
-    },
-    {
-        title: "Roadmap Generation",
-        description: "Create milestones and development plans instantly."
+        description: "Complete PRDs with goals, features and requirements."
     },
     {
         title: "User Stories",
-        description: "Generate sprint-ready stories and acceptance criteria."
+        description: "Sprint-ready stories with clear acceptance criteria."
     },
     {
-        title: "API Design",
-        description: "Create scalable API specifications."
+        title: "Product Roadmaps",
+        description: "Milestones, releases and development timelines."
     },
     {
-        title: "Database Schema",
-        description: "Generate production-ready schema designs."
+        title: "System Architecture",
+        description: "Scalable architecture for modern applications."
     },
     {
-        title: "Architecture Planning",
-        description: "Design scalable software architectures."
+        title: "API Specifications",
+        description: "REST APIs with endpoints and request models."
     },
     {
-        title: "Docker Setup",
-        description: "Generate containerization plans and configs."
+        title: "Database Design",
+        description: "Production-ready database schemas and relationships."
     },
     {
-        title: "CI/CD Planning",
-        description: "Create deployment workflow blueprints."
+        title: "Technical Documentation",
+        description: "Structured engineering documentation in Markdown."
     },
     {
-        title: "Testing Plans",
-        description: "Generate testing strategies and coverage plans."
+        title: "Testing Strategy",
+        description: "Unit, integration and deployment testing plans."
+    },
+    {
+        title: "Deployment Guide",
+        description: "Deployment workflows and infrastructure planning."
     },
     {
         title: "Risk Analysis",
-        description: "Identify technical and project risks early."
+        description: "Identify technical and business risks early."
     },
     {
-        title: "ADR Generation",
-        description: "Create Architecture Decision Records automatically."
+        title: "AI Project Chat",
+        description: "Refine requirements and update plans naturally."
     },
     {
-        title: "Deployment Planning",
-        description: "Plan infrastructure and release workflows."
+        title: "Workflow Automation",
+        description: "Connect GitHub, Jira, Notion and more."
     }
 ];
 
@@ -61,15 +61,14 @@ const Capabilities = () => {
         <div className="flex flex-col items-center justify-center py-12 md:py-16 lg:py-24 w-full">
             <Container>
                 <div className="flex flex-col items-center text-center max-w-3xl mx-auto">
-                    <SectionBadge title="Capabilities" />
+                    <SectionBadge title="What You Get" />
                     
                     <h2 className="text-2xl md:text-4xl lg:text-5xl font-heading font-medium !leading-snug mt-6 text-foreground">
-                        Everything needed to plan software products
+                        Everything your team needs before development begins
                     </h2>
                     
                     <p className="text-base md:text-lg text-center text-foreground/60 mt-6 leading-relaxed">
-                        From product requirements to architecture, APIs, testing and deployment planning —
-                        ProdMate helps teams move from idea to execution with structured AI-generated outputs.
+                        Turn a simple idea into engineering-ready deliverables. ProdMate generates the planning, documentation, architecture, and technical artifacts your team needs to build with confidence.
                     </p>
                 </div>
             </Container>

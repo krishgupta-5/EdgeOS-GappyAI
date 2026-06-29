@@ -1,47 +1,47 @@
 import {
-  BrainCircuit,
   FileText,
   Map,
-  Rocket,
   Blocks,
-  GitBranch,
+  BookOpen,
+  MessageSquare,
+  Workflow,
 } from "lucide-react";
 
 export const PERKS = [
   {
-    icon: BrainCircuit,
-    title: "AI Product Manager",
-    description:
-      "Convert ideas into structured product plans instantly.",
-  },
-  {
     icon: FileText,
-    title: "Smart Documentation",
+    title: "Product Requirements",
     description:
-      "Generate PRDs, roadmaps and technical documents automatically.",
+      "Generate complete PRDs with goals, features, requirements and acceptance criteria.",
   },
   {
     icon: Map,
-    title: "Roadmap Generation",
+    title: "Roadmaps & Sprints",
     description:
-      "Create development roadmaps and milestone planning in seconds.",
-  },
-  {
-    icon: Rocket,
-    title: "Rapid Planning",
-    description:
-      "Reduce weeks of planning work to minutes.",
+      "Create product roadmaps, milestones, sprint plans and development timelines.",
   },
   {
     icon: Blocks,
-    title: "Scalable Architecture",
+    title: "Architecture Design",
     description:
-      "Design systems, APIs and databases built for growth.",
+      "Design scalable system architecture, APIs and database schemas in minutes.",
   },
   {
-    icon: GitBranch,
-    title: "SDLC Guidance",
+    icon: BookOpen,
+    title: "Technical Documentation",
     description:
-      "Get support from requirements gathering to deployment planning.",
+      "Generate engineering docs, testing strategies and deployment guides automatically.",
+  },
+  {
+    icon: MessageSquare,
+    title: "AI Project Assistant",
+    description:
+      "Refine requirements, update documents and evolve your project through natural conversation.",
+  },
+  {
+    icon: Workflow,
+    title: "Workflow Automation",
+    description:
+      "Sync with GitHub, Jira, Notion, Gmail and Google Calendar to streamline execution.",
   },
 ];
