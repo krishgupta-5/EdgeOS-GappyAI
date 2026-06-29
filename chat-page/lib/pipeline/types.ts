@@ -23,6 +23,12 @@ export type ArtifactType =
   | 'riskAnalysis'
   | 'finalMarkdown';
 
+export const INTEGRATION_DEPENDENCY_MAP: Record<string, ArtifactType[]> = {
+  github: ['config', 'markdown', 'db', 'apiDesign', 'folderStructure', 'docker', 'testingPlan', 'userStories', 'roadmap', 'deploymentGuide', 'costEstimation', 'projectTimeline', 'riskAnalysis', 'finalMarkdown'],
+  jira: ['userStories'],
+  notion: ['config', 'markdown', 'db', 'apiDesign', 'folderStructure', 'docker', 'testingPlan', 'userStories', 'roadmap', 'deploymentGuide', 'costEstimation', 'projectTimeline', 'riskAnalysis', 'finalMarkdown'],
+};
+
 /** Frontend-facing artifact type includes "initial" (config+markdown combo) */
 export type RequestArtifactType = ArtifactType | 'initial';
 
@@ -31,6 +37,7 @@ export type GenerationMode = 'generate' | 'modify';
 // ─────────────────────────────────────────────
 // Groq Client Types
 // ─────────────────────────────────────────────
+
 
 export interface GroqCallConfig {
   apiKey: string;
@@ -188,10 +195,38 @@ export interface ProjectState {
     notion: boolean;
     jira: boolean;
   };
-  /** External integration URLs */
   githubUrl?: string;
+  githubRepository?: string;
+  githubExportStatus?: 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED';
+
   notionUrl?: string;
+  notionPageId?: string;
+  exportStatus?: 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED'; // Used for notion
+
   jiraUrl?: string;
+  jiraProjectKey?: string;
+  jiraExportStatus?: 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED';
+
+  // Synchronization System States
+  githubExported?: boolean;
+  githubDirty?: boolean;
+  lastGitHubSync?: string;
+  githubDirtyArtifacts?: string[];
+
+  jiraExported?: boolean;
+  jiraDirty?: boolean;
+  lastJiraSync?: string;
+  jiraDirtyArtifacts?: string[];
+
+  notionExported?: boolean;
+  notionDirty?: boolean;
+  lastNotionSync?: string;
+  notionDirtyArtifacts?: string[];
+
+  calendarExportStatus?: 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED';
+  calendarEventsCreated?: number;
+  
+  gmailExportStatus?: 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED';
 }
 
 // ─────────────────────────────────────────────
@@ -284,7 +319,7 @@ export interface DbSchema {
 
 export interface ProgressEvent {
   type: 'GENERATION_STARTED' | 'ARTIFACT_GENERATED' | 'EXPORT_STARTED' | 'EXPORT_PROGRESS' | 'EXPORT_COMPLETED' | 'EXPORT_FAILED';
-  source: 'pipeline' | 'github' | 'notion' | 'jira';
+  source: 'pipeline' | 'github' | 'notion' | 'jira' | 'calendar' | 'gmail';
   message: string;
   metadata?: any;
   durationMs?: number;
@@ -296,6 +331,29 @@ export interface ProgressEvent {
  * Used during migration to maintain API compatibility.
  */
 export interface LegacyGenerateResult {
+  exportStatus?: 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED';
+
+  // GitHub Export Metadata
+  githubUrl?: string;
+  githubRepository?: string;
+  githubExportStatus?: 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED';
+
+  // Jira Export Metadata
+  jiraUrl?: string;
+  jiraProjectKey?: string;
+  jiraExportStatus?: 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED';
+  
+  // Notion Export Metadata
+  notionUrl?: string;
+  notionPageId?: string;
+
+  // Google Calendar Export Metadata
+  calendarExportStatus?: 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED';
+  calendarEventsCreated?: number;
+
+  // Gmail Export Metadata
+  gmailExportStatus?: 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED';
+
   yaml: string;
   markdown: string;
   docker: string;
@@ -343,3 +401,30 @@ export const REQUEST_TIMEOUT_MS = 30_000;
 export const ACTIVEPIECES_TIMEOUT_MS = 45_000;
 export const PROMPT_MAX_LEN = 2000;
 export const PROMPT_MIN_LEN = 5;
+
+// ─────────────────────────────────────────────
+// Conversational AI Assistant Types
+// ─────────────────────────────────────────────
+
+export interface EmailPreview {
+  recipient: string;
+  subject: string;
+  body: string;
+  status: 'preview' | 'sending' | 'sent' | 'cancelled';
+  sentAt?: string;
+  messageId?: string;
+}
+
+export interface MeetingPreview {
+  title: string;
+  date: string;
+  time: string;
+  duration: number; // in minutes
+  guests: string[];
+  agenda: string;
+  description: string;
+  status: 'preview' | 'scheduling' | 'scheduled' | 'cancelled';
+  eventId?: string;
+  meetLink?: string;
+  scheduledAt?: string;
+}

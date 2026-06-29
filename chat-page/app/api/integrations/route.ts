@@ -16,6 +16,8 @@ export async function GET() {
       notion: data.notion || null,
       github: data.github || null,
       jira: data.jira || null,
+      googleCalendar: data.googleCalendar || null,
+      gmail: data.gmail || null,
     });
   } catch (err) {
     console.error('Failed to load integrations:', err);

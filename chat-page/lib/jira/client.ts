@@ -97,7 +97,7 @@ export class JiraClient {
     return this.refreshPromise;
   }
 
-  private async request(method: string, endpoint: string, body?: any, retry = true): Promise<any> {
+  public async request(method: string, endpoint: string, body?: any, retry = true): Promise<any> {
     let token = await this.getValidToken();
     const baseUrl = `https://api.atlassian.com/ex/jira/${this.cloudId}`;
     const apiPath = `/rest/api/3${endpoint}`;
@@ -154,6 +154,52 @@ export class JiraClient {
   }
 
 
+
+  async searchIssues(jql: string) {
+    return this.request('GET', `/search?jql=${encodeURIComponent(jql)}`);
+  }
+
+  async createIssue(projectKey: string, summary: string, description: string, issueTypeName: string = 'Story') {
+    return this.request('POST', '/issue', {
+      fields: {
+        project: { key: projectKey },
+        summary,
+        description: {
+          type: "doc",
+          version: 1,
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: description.substring(0, 30000) }
+              ]
+            }
+          ]
+        },
+        issuetype: { name: issueTypeName },
+      }
+    });
+  }
+
+  async updateIssue(issueIdOrKey: string, summary: string, description: string) {
+    return this.request('PUT', `/issue/${issueIdOrKey}`, {
+      fields: {
+        summary,
+        description: {
+          type: "doc",
+          version: 1,
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: description.substring(0, 30000) }
+              ]
+            }
+          ]
+        },
+      }
+    });
+  }
 
   async getCurrentUser() {
     return this.request('GET', '/myself');

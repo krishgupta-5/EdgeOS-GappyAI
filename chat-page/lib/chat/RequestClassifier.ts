@@ -6,6 +6,8 @@ export type RequestCategory =
   | 'Add Feature' 
   | 'Remove Feature' 
   | 'Generate Artifact' 
+  | 'Communication'
+  | 'Scheduling'
   | 'General Project Question';
 
 export interface ClassificationResult {
@@ -34,14 +36,21 @@ Analyze the user's message and classify it into EXACTLY ONE of the following cat
 - Add Feature (User wants to add a new capability or module)
 - Remove Feature (User wants to remove a capability)
 - Generate Artifact (User explicitly asks to generate a new document or code file)
+- Communication (User wants to draft, edit, or send an email/communication)
+- Scheduling (User wants to plan, schedule, or move a calendar meeting/event)
 - General Project Question (User asks a generic question about the project status or metadata)
 
 Current Project Status:
 ${state.projectSummary || state.projectDescription}
 
+CRITICAL RULES:
+1. If the user message contains "[System Context: Current Meeting Draft", the category MUST be "Scheduling".
+2. If the user message contains "[System Context: Current Email Draft", the category MUST be "Communication".
+3. If the user message contains "Current Draft:", determine if it's an email (Communication) or meeting (Scheduling) and route accordingly. DO NOT route to Modify.
+
 Respond strictly with a JSON object in the following format:
 {
-  "category": "Explain | Modify | Add Feature | Remove Feature | Generate Artifact | General Project Question",
+  "category": "Explain | Modify | Add Feature | Remove Feature | Generate Artifact | Communication | Scheduling | General Project Question",
   "explanation": "Brief reasoning for this classification"
 }`
     },

@@ -18,6 +18,7 @@ interface InputAreaProps {
   handleKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   handleSend: () => void;
   isTyping: boolean;
+  hasGeneratedConfig?: boolean;
 }
 
 // --- Helper Components for Encapsulated Hover States ---
@@ -113,6 +114,7 @@ export default function InputArea({
   handleKeyDown,
   handleSend,
   isTyping,
+  hasGeneratedConfig
 }: InputAreaProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -160,7 +162,7 @@ export default function InputArea({
         onKeyDown={handleKeyDown}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
-        placeholder="Describe the software product you want to build..."
+        placeholder={hasGeneratedConfig ? "Ask anything about your project... (e.g., Write an email, Schedule a meeting)" : "Describe the software product you want to build..."}
         disabled={isTyping}
         rows={1}
         style={{

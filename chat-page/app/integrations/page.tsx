@@ -121,7 +121,7 @@ function CustomSelect({ value, options, onChange, disabled, placeholder, width =
 
 // ─── Component Data ─────────────────────────────────────────────────────────
 
-type Category = "All" | "Workspace" | "Development" | "Project Management" | "Productivity" | "Communication";
+type Category = "All" | "Workspace" | "Development" | "Project Management" | "Productivity" | "Communication" | "Automation";
 
 interface Integration {
   id: string;
@@ -161,7 +161,7 @@ const INTEGRATIONS: Integration[] = [
   {
     id: "calendar",
     name: "Google Calendar",
-    category: "Productivity",
+    category: "Automation",
     description: "Sync project milestones and automatically schedule review meetings.",
     domain: "calendar.google.com",
     connected: false,
@@ -170,7 +170,7 @@ const INTEGRATIONS: Integration[] = [
   {
     id: "gmail",
     name: "Gmail",
-    category: "Communication",
+    category: "Automation",
     description: "Automate email updates and summaries to stakeholders on project progress.",
     domain: "gmail.com",
     connected: false,
@@ -178,7 +178,7 @@ const INTEGRATIONS: Integration[] = [
   }
 ];
 
-const CATEGORIES: Category[] = ["All", "Workspace", "Development", "Project Management", "Productivity", "Communication"];
+const CATEGORIES: Category[] = ["All", "Workspace", "Development", "Project Management", "Productivity", "Communication", "Automation"];
 
 // ─── Child Components ───────────────────────────────────────────────────────
 
@@ -308,6 +308,8 @@ export default function IntegrationsPanel() {
   const [notionData, setNotionData] = useState<{ connected: boolean; workspaceName?: string; pages?: any[]; defaultParentPageId?: string } | null>(null);
   const [githubData, setGithubData] = useState<{ connected: boolean; username?: string; avatarUrl?: string; repoVisibility?: string } | null>(null);
   const [jiraData, setJiraData] = useState<{ connected: boolean; workspaceName?: string; accountName?: string; projectPreference?: string } | null>(null);
+  const [googleCalendarData, setGoogleCalendarData] = useState<{ connected: boolean; email?: string } | null>(null);
+  const [gmailData, setGmailData] = useState<{ connected: boolean; email?: string } | null>(null);
   const [loadingIntegrations, setLoadingIntegrations] = useState(true);
   const [selectedPage, setSelectedPage] = useState("");
   const [githubVisibility, setGithubVisibility] = useState("private");
@@ -342,11 +344,17 @@ export default function IntegrationsPanel() {
       setJiraData(allIntegrations.jira ? { ...allIntegrations.jira, connected: !!allIntegrations.jira.accessToken } : { connected: false });
       if (allIntegrations.jira?.projectPreference) setJiraPreference(allIntegrations.jira.projectPreference);
 
+      // Google Calendar & Gmail
+      setGoogleCalendarData(allIntegrations.googleCalendar ? { ...allIntegrations.googleCalendar, connected: !!allIntegrations.googleCalendar.accessToken } : { connected: false });
+      setGmailData(allIntegrations.gmail ? { ...allIntegrations.gmail, connected: !!allIntegrations.gmail.accessToken } : { connected: false });
+
       setIntegrations(
         INTEGRATIONS.map((i) => {
           if (i.id === "notion") return { ...i, connected: !!notionPages.connected };
           if (i.id === "github") return { ...i, connected: !!allIntegrations.github?.accessToken };
           if (i.id === "jira") return { ...i, connected: !!allIntegrations.jira?.accessToken };
+          if (i.id === "calendar") return { ...i, connected: !!allIntegrations.googleCalendar?.accessToken };
+          if (i.id === "gmail") return { ...i, connected: !!allIntegrations.gmail?.accessToken };
           return i;
         })
       );
@@ -418,6 +426,10 @@ export default function IntegrationsPanel() {
       } else if (id === "jira") {
         await fetch("/api/jira/disconnect", { method: "DELETE" });
         setJiraData({ connected: false });
+      } else if (id === "calendar") {
+        await fetch("/api/google-calendar/disconnect", { method: "DELETE" });
+      } else if (id === "gmail") {
+        await fetch("/api/gmail/disconnect", { method: "DELETE" });
       }
 
       setIntegrations((prev) =>
@@ -462,7 +474,8 @@ export default function IntegrationsPanel() {
   const handleConnect = (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    window.location.href = `/api/${id}/connect`;
+    const routeId = id === "calendar" ? "google-calendar" : id;
+    window.location.href = `/api/${routeId}/connect`;
   };
 
   const handleConfigure = (id: string, e: React.MouseEvent) => {
@@ -551,7 +564,7 @@ export default function IntegrationsPanel() {
             {/* ───────────────────────────────────────────── */}
             {/* FILTERS                                       */}
             {/* ───────────────────────────────────────────── */}
-            {!error && !(!loadingIntegrations && integrations.every(i => !i.connected)) && (
+            {!error && (
               <div style={{
                 display: "flex", alignItems: "center", gap: "12px", marginBottom: "40px",
                 flexWrap: "wrap", animation: "fadeUp 0.4s ease-out 0.1s both"
@@ -611,38 +624,7 @@ export default function IntegrationsPanel() {
             {/* ───────────────────────────────────────────── */}
             {/* INTEGRATIONS GRID                             */}
             {/* ───────────────────────────────────────────── */}
-            {!error && !loadingIntegrations && integrations.every(i => !i.connected) ? (
-              <div style={{
-                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                padding: "64px 24px", background: T.surface, border: `1px dashed ${T.borderHover}`, borderRadius: "16px",
-                textAlign: "center", animation: "fadeUp 0.4s ease-out 0.2s both"
-              }}>
-                <div style={{ width: "48px", height: "48px", borderRadius: "24px", background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px", color: T.textMuted }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                </div>
-                <h3 style={{ fontSize: "16px", fontWeight: 500, color: T.text, margin: "0 0 8px 0" }}>No integrations connected yet.</h3>
-                <p style={{ fontSize: "14px", color: T.textMuted, margin: "0 0 32px 0", maxWidth: "400px", lineHeight: "1.6" }}>
-                  Connect your existing tools to automatically export generated planning artifacts and documentation directly into your team's workspace.
-                </p>
-                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
-                  <button
-                    onClick={() => window.location.href = "/api/github/connect"}
-                    style={{ padding: "10px 20px", background: T.text, color: T.bg, border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, fontFamily: T.font, cursor: "pointer", transition: "opacity 0.2s" }}
-                    onMouseEnter={e => e.currentTarget.style.opacity = "0.85"} onMouseLeave={e => e.currentTarget.style.opacity = "1"}
-                  >Connect GitHub</button>
-                  <button
-                    onClick={() => window.location.href = "/api/notion/connect"}
-                    style={{ padding: "10px 20px", background: T.text, color: T.bg, border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, fontFamily: T.font, cursor: "pointer", transition: "opacity 0.2s" }}
-                    onMouseEnter={e => e.currentTarget.style.opacity = "0.85"} onMouseLeave={e => e.currentTarget.style.opacity = "1"}
-                  >Connect Notion</button>
-                  <button
-                    onClick={() => window.location.href = "/api/jira/connect"}
-                    style={{ padding: "10px 20px", background: T.text, color: T.bg, border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 600, fontFamily: T.font, cursor: "pointer", transition: "opacity 0.2s" }}
-                    onMouseEnter={e => e.currentTarget.style.opacity = "0.85"} onMouseLeave={e => e.currentTarget.style.opacity = "1"}
-                  >Connect Jira</button>
-                </div>
-              </div>
-            ) : !error && (
+            {!error && (
               <div style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
@@ -671,9 +653,9 @@ export default function IntegrationsPanel() {
                     <IntegrationCard
                       key={integration.id}
                       integration={integration}
-                      onConnect={["notion", "github", "jira"].includes(integration.id) ? (e) => handleConnect(integration.id, e) : undefined}
-                      onConfigure={["notion", "github", "jira"].includes(integration.id) ? (e) => handleConfigure(integration.id, e) : undefined}
-                      onToggleActive={!["notion", "github", "jira"].includes(integration.id) ? (id, e) => handleToggleActive(id, e) : undefined}
+                      onConnect={["notion", "github", "jira", "calendar", "gmail"].includes(integration.id) ? (e) => handleConnect(integration.id, e) : undefined}
+                      onConfigure={["notion", "github", "jira", "calendar", "gmail"].includes(integration.id) ? (e) => handleConfigure(integration.id, e) : undefined}
+                      onToggleActive={!["notion", "github", "jira", "calendar", "gmail"].includes(integration.id) ? (id, e) => handleToggleActive(id, e) : undefined}
                     />
                   ))
                 )}
@@ -709,7 +691,11 @@ export default function IntegrationsPanel() {
             </button>
 
             <h2 style={{ margin: "0 0 24px 0", fontSize: "18px", color: T.text, fontWeight: 500 }}>
-              {showSettings["notion"] ? "Notion Settings" : showSettings["github"] ? "GitHub Settings" : "Jira Settings"}
+              {showSettings["notion"] ? "Notion Settings" 
+                : showSettings["github"] ? "GitHub Settings" 
+                : showSettings["jira"] ? "Jira Settings" 
+                : showSettings["calendar"] ? "Google Calendar Settings"
+                : "Gmail Settings"}
             </h2>
 
             {/* NOTION SETTINGS SECTION */}
@@ -837,6 +823,55 @@ export default function IntegrationsPanel() {
                 </div>
               </div>
             )}
+
+            {/* GOOGLE CALENDAR SETTINGS SECTION */}
+            {showSettings["calendar"] && googleCalendarData?.connected && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "13px", color: T.textMuted }}>Connected Account</span>
+                  <span style={{ fontSize: "13px", color: T.text, fontWeight: 500 }}>{googleCalendarData.email}</span>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px", paddingTop: "16px", borderTop: `1px solid ${T.border}` }}>
+                  <button
+                    onClick={() => handleDisconnect("calendar")}
+                    disabled={disconnecting === "calendar"}
+                    style={{
+                      padding: "8px 16px", background: "transparent", border: "1px solid rgba(239, 68, 68, 0.3)", color: "#f87171", borderRadius: "8px", fontSize: "12px", fontWeight: 500, cursor: disconnecting === "calendar" ? "not-allowed" : "pointer", transition: "all 0.2s ease", opacity: disconnecting === "calendar" ? 0.5 : 1
+                    }}
+                    onMouseEnter={(e) => { if (disconnecting !== "calendar") { e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)"; e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.5)"; } }}
+                    onMouseLeave={(e) => { if (disconnecting !== "calendar") { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.3)"; } }}
+                  >
+                    Disconnect Google Calendar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* GMAIL SETTINGS SECTION */}
+            {showSettings["gmail"] && gmailData?.connected && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "13px", color: T.textMuted }}>Connected Account</span>
+                  <span style={{ fontSize: "13px", color: T.text, fontWeight: 500 }}>{gmailData.email}</span>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px", paddingTop: "16px", borderTop: `1px solid ${T.border}` }}>
+                  <button
+                    onClick={() => handleDisconnect("gmail")}
+                    disabled={disconnecting === "gmail"}
+                    style={{
+                      padding: "8px 16px", background: "transparent", border: "1px solid rgba(239, 68, 68, 0.3)", color: "#f87171", borderRadius: "8px", fontSize: "12px", fontWeight: 500, cursor: disconnecting === "gmail" ? "not-allowed" : "pointer", transition: "all 0.2s ease", opacity: disconnecting === "gmail" ? 0.5 : 1
+                    }}
+                    onMouseEnter={(e) => { if (disconnecting !== "gmail") { e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)"; e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.5)"; } }}
+                    onMouseLeave={(e) => { if (disconnecting !== "gmail") { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.3)"; } }}
+                  >
+                    Disconnect Gmail
+                  </button>
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       )}

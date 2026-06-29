@@ -496,7 +496,9 @@ export async function exportToNotion(
   accessToken: string, 
   rootPageId: string, 
   logSummary: any = {},
-  onProgress?: (msg: string) => void
+  onProgress?: (msg: string) => void,
+  existingPageId?: string,
+  dirtyArtifacts?: string[]
 ) {
   const startTime = Date.now();
   console.log(`[NOTION] Export Started`);
@@ -584,31 +586,66 @@ export async function exportToNotion(
       divider: {}
     });
 
-    onProgress?.('Creating parent page...');
     let parentPage;
-    try {
-      parentPage = await retryNotionCall(() => notion.pages.create({
-        parent: { page_id: rootPageId },
-        properties: {
-          title: {
-            title: [
-              {
-                text: { content: `✨ ${title || 'New Project'}` }
-              }
-            ]
-          }
-        },
-        children: parentChildren
-      }));
-    } catch (e: any) {
-      if (e.code === 'object_not_found') {
-        throw new Error('PARENT_PAGE_NOT_FOUND');
+    let parentId = existingPageId || '';
+    let parentUrl = '';
+    
+    if (existingPageId) {
+      onProgress?.('Fetching existing parent page...');
+      try {
+        parentPage = await retryNotionCall(() => notion.pages.retrieve({ page_id: existingPageId }));
+        parentUrl = ('url' in parentPage && typeof parentPage.url === 'string') ? parentPage.url : `https://notion.so/${parentId.replace(/-/g, '')}`;
+      } catch (err) {
+        console.error(`[NOTION] Failed to fetch existing parent page ${existingPageId}`, err);
+        logSummary.Notion = 'FAILED';
+        return null;
       }
-      throw e;
+    } else {
+      onProgress?.('Creating parent page...');
+      try {
+        parentPage = await retryNotionCall(() => notion.pages.create({
+          parent: { page_id: rootPageId },
+          properties: {
+            title: {
+              title: [
+                {
+                  text: { content: `✨ ${title || 'New Project'}` }
+                }
+              ]
+            }
+          },
+          children: parentChildren
+        }));
+        parentId = parentPage.id;
+        parentUrl = ('url' in parentPage && typeof parentPage.url === 'string') ? parentPage.url : `https://notion.so/${parentId.replace(/-/g, '')}`;
+      } catch (e: any) {
+        if (e.code === 'object_not_found') {
+          throw new Error('PARENT_PAGE_NOT_FOUND');
+        }
+        throw e;
+      }
     }
 
-    const parentId = parentPage.id;
-    const parentUrl = ('url' in parentPage && typeof parentPage.url === 'string') ? parentPage.url : `https://notion.so/${parentId.replace(/-/g, '')}`;
+    // Fetch existing child pages if updating
+    const existingChildrenMap: Record<string, string> = {};
+    if (existingPageId) {
+      try {
+        let hasMore = true;
+        let nextCursor: string | undefined = undefined;
+        while (hasMore) {
+          const resp: any = await retryNotionCall(() => notion.blocks.children.list({ block_id: existingPageId, start_cursor: nextCursor }));
+          for (const block of resp.results) {
+            if (block.type === 'child_page' && block.child_page?.title) {
+              existingChildrenMap[block.child_page.title] = block.id;
+            }
+          }
+          hasMore = resp.has_more;
+          nextCursor = resp.next_cursor;
+        }
+      } catch (err) {
+        console.warn(`[NOTION] Failed to fetch existing child pages`, err);
+      }
+    }
 
     const orderedTypes: ArtifactType[] = [
       'markdown', 'config', 'db', 'apiDesign', 'docker', 'folderStructure', 
@@ -637,14 +674,19 @@ export async function exportToNotion(
     
     for (const type of orderedTypes) {
       if (state.artifacts[type]?.content) {
-        artifactsToExport.push({ type, content: state.artifacts[type].content });
+        // If updating, only export if dirty or if we don't have dirty list
+        if (!existingPageId || !dirtyArtifacts || dirtyArtifacts.includes(type)) {
+          artifactsToExport.push({ type, content: state.artifacts[type].content });
+        }
       }
     }
     
     const exportedTypes = new Set(artifactsToExport.map(a => a.type));
     for (const [type, artifact] of Object.entries(state.artifacts)) {
       if (!exportedTypes.has(type) && artifact?.content) {
-        artifactsToExport.push({ type, content: artifact.content });
+        if (!existingPageId || !dirtyArtifacts || dirtyArtifacts.includes(type)) {
+          artifactsToExport.push({ type, content: artifact.content });
+        }
       }
     }
 
@@ -655,14 +697,20 @@ export async function exportToNotion(
       const firstChunk = allBlocks.slice(0, 100);
 
       const meta = artifactMeta[type] || { name: type.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim(), emoji: '📄' };
+      const childPageTitle = `${meta.emoji} ${meta.name}`;
       onProgress?.(`Uploading ${meta.name}...`);
 
       try {
+        if (existingPageId && existingChildrenMap[childPageTitle]) {
+          // Archive old child page
+          await retryNotionCall(() => notion.pages.update({ page_id: existingChildrenMap[childPageTitle], archived: true }));
+        }
+
         const childPage = await retryNotionCall(() => notion.pages.create({
           parent: { page_id: parentId },
           properties: {
             title: {
-              title: [{ text: { content: `${meta.emoji} ${meta.name}` } }]
+              title: [{ text: { content: childPageTitle } }]
             }
           },
           children: firstChunk

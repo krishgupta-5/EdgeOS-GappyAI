@@ -112,8 +112,26 @@ export async function loadProjectState(
       lastConversationAt: sessionData.lastConversationAt,
       pendingIntegrationUpdates: sessionData.pendingIntegrationUpdates,
       githubUrl: sessionData.githubUrl,
+      githubRepository: sessionData.githubRepository,
       notionUrl: sessionData.notionUrl,
+      notionPageId: sessionData.notionPageId,
       jiraUrl: sessionData.jiraUrl,
+      jiraProjectKey: sessionData.jiraProjectKey,
+
+      githubExported: sessionData.githubExported,
+      githubDirty: sessionData.githubDirty,
+      lastGitHubSync: sessionData.lastGitHubSync,
+      githubDirtyArtifacts: sessionData.githubDirtyArtifacts,
+
+      jiraExported: sessionData.jiraExported,
+      jiraDirty: sessionData.jiraDirty,
+      lastJiraSync: sessionData.lastJiraSync,
+      jiraDirtyArtifacts: sessionData.jiraDirtyArtifacts,
+
+      notionExported: sessionData.notionExported,
+      notionDirty: sessionData.notionDirty,
+      lastNotionSync: sessionData.lastNotionSync,
+      notionDirtyArtifacts: sessionData.notionDirtyArtifacts,
     };
   } catch (err) {
     console.error(
@@ -219,8 +237,10 @@ export async function saveAssistantMessage(
   userId: string,
   content: string,
   artifactType?: string,
-): Promise<void> {
-  await db
+  emailPreview?: any, // I'll use any here to avoid import issues if possible, or I can import it later.
+  meetingPreview?: any
+): Promise<string> {
+  const docRef = await db
     .collection('sessions')
     .doc(sessionId)
     .collection('messages')
@@ -229,8 +249,11 @@ export async function saveAssistantMessage(
       content,
       userId,
       ...(artifactType && { artifactType }),
+      ...(emailPreview && { emailPreview }),
+      ...(meetingPreview && { meetingPreview }),
       createdAt: new Date(),
     });
+  return docRef.id;
 }
 
 /**
@@ -253,11 +276,32 @@ export async function saveSessionMetadata(
     jiraUrl?: string;
     jiraProjectKey?: string;
     jiraExportStatus?: string;
+    calendarExportStatus?: string;
+    calendarEventsCreated?: number;
+    calendarUrl?: string;
+    gmailExportStatus?: string;
     conversationMode?: boolean;
     projectSummary?: string;
     artifactSummary?: string;
     conversationSummary?: string;
     lastConversationAt?: string;
+
+    // Synchronization System States
+    githubExported?: boolean;
+    githubDirty?: boolean;
+    lastGitHubSync?: string;
+    githubDirtyArtifacts?: string[];
+
+    jiraExported?: boolean;
+    jiraDirty?: boolean;
+    lastJiraSync?: string;
+    jiraDirtyArtifacts?: string[];
+
+    notionExported?: boolean;
+    notionDirty?: boolean;
+    lastNotionSync?: string;
+    notionDirtyArtifacts?: string[];
+
     pendingIntegrationUpdates?: {
       github: boolean;
       notion: boolean;
@@ -289,6 +333,21 @@ export async function saveSessionMetadata(
   if (data.conversationSummary) docData.conversationSummary = data.conversationSummary;
   if (data.lastConversationAt) docData.lastConversationAt = data.lastConversationAt;
   if (data.pendingIntegrationUpdates) docData.pendingIntegrationUpdates = data.pendingIntegrationUpdates;
+  
+  if (data.githubExported !== undefined) docData.githubExported = data.githubExported;
+  if (data.githubDirty !== undefined) docData.githubDirty = data.githubDirty;
+  if (data.lastGitHubSync) docData.lastGitHubSync = data.lastGitHubSync;
+  if (data.githubDirtyArtifacts) docData.githubDirtyArtifacts = data.githubDirtyArtifacts;
+
+  if (data.jiraExported !== undefined) docData.jiraExported = data.jiraExported;
+  if (data.jiraDirty !== undefined) docData.jiraDirty = data.jiraDirty;
+  if (data.lastJiraSync) docData.lastJiraSync = data.lastJiraSync;
+  if (data.jiraDirtyArtifacts) docData.jiraDirtyArtifacts = data.jiraDirtyArtifacts;
+
+  if (data.notionExported !== undefined) docData.notionExported = data.notionExported;
+  if (data.notionDirty !== undefined) docData.notionDirty = data.notionDirty;
+  if (data.lastNotionSync) docData.lastNotionSync = data.lastNotionSync;
+  if (data.notionDirtyArtifacts) docData.notionDirtyArtifacts = data.notionDirtyArtifacts;
 
   await db
     .collection('sessions')

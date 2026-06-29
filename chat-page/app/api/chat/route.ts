@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getFullUserData } from '@/lib/auth';
-import { createOrUpdateUser } from '@/lib/firebase-admin';
+import { createOrUpdateUser, db } from '@/lib/firebase-admin';
 import { getOrCreateQuota, deductTokens } from '@/lib/token-quota';
 
-import { loadProjectState, saveAssistantMessage, saveUserMessage, saveSessionMetadata } from '@/lib/pipeline/FirestoreService';
+import { loadProjectState, saveAssistantMessage, saveUserMessage, saveSessionMetadata, saveEvent } from '@/lib/pipeline/FirestoreService';
 import { buildConversationalContext } from '@/lib/chat/ContextManager';
 import { classifyRequest } from '@/lib/chat/RequestClassifier';
 import { analyzeImpact } from '@/lib/chat/ImpactAnalysis';
 import { modifyArtifact } from '@/lib/pipeline/ArtifactController';
-import type { ArtifactType } from '@/lib/pipeline/types';
+import { callGroqRaw, createCallConfig } from '@/lib/pipeline/GroqClient';
+import { type ArtifactType, INTEGRATION_DEPENDENCY_MAP } from '@/lib/pipeline/types';
+
+
 
 function secureHeaders(res: NextResponse): NextResponse {
   res.headers.set('X-Content-Type-Options', 'nosniff');
@@ -116,6 +119,105 @@ export async function POST(req: Request) {
         artifactsModified: []
       }));
 
+    } else if (classification.category === 'Communication' || classification.category === 'Scheduling') {
+      const isEmail = classification.category === 'Communication';
+      const promptContext = `
+You are an AI Executive Assistant. The user wants to ${isEmail ? 'draft or edit an email' : 'schedule or edit a calendar meeting'}.
+Current Project Status: ${state.projectSummary || ''}
+Timeline: ${state.artifacts['projectTimeline']?.content || ''}
+Roadmap: ${state.artifacts['roadmap']?.content || ''}
+GitHub: ${state.githubUrl || ''}
+
+User Request: "${prompt}"
+
+If the user request contains "[System Context: Current ... Draft: {...}]", you MUST treat that JSON as the current draft and ONLY apply the user's requested modifications to it, keeping the rest of the draft intact. If no draft is provided, generate a new one.
+
+Generate a draft of the ${isEmail ? 'email' : 'meeting'}.
+Respond ONLY with a JSON object. Do not include markdown formatting or extra text.
+CRITICAL RULE: If the user does not provide a FULL, valid email address for the recipient or guests, DO NOT hallucinate one (e.g., do NOT use @example.com). Leave the email field blank, and use the "assistantMessage" field to politely ask the user for the missing email address.
+
+${isEmail ? `
+Format:
+{
+  "assistantMessage": "Optional custom message for the user, especially if you need to ask for a valid email address.",
+  "recipient": "email@domain.com (Leave empty string if not explicitly provided)",
+  "subject": "Email Subject",
+  "body": "The body of the email. Do not use markdown."
+}
+` : `
+Format:
+{
+  "assistantMessage": "Optional custom message for the user, especially if you need to ask for valid guest email addresses.",
+  "title": "Meeting Title",
+  "date": "YYYY-MM-DD",
+  "time": "HH:MM (24-hour)",
+  "duration": 60,
+  "guests": ["email@domain.com (Leave empty array if not explicitly provided)"],
+  "agenda": "Meeting agenda",
+  "description": "Meeting description"
+}
+`}
+`;
+
+      const groqKey = process.env.GROQ_API_KEY;
+      if (!groqKey) return errorResponse('GROQ_API_KEY is not set', 'MISSING_API_KEY', 500);
+
+      const config = createCallConfig(groqKey, 1024, 0.2);
+      const res = await callGroqRaw(
+        config,
+        [{ role: 'user', content: promptContext }],
+        'GenerateDraft'
+      );
+
+      if (!res || !res.content) {
+        return errorResponse('Failed to generate draft', 'GROQ_ERROR', 500);
+      }
+
+      const rawOutput = res.content;
+
+      let parsed: any;
+      try {
+        const cleanedOutput = rawOutput.replace(/^```(json)?\n?/i, '').replace(/\n?```$/i, '').trim();
+        parsed = JSON.parse(cleanedOutput);
+      } catch (e) {
+        return errorResponse('Failed to parse AI output', 'PARSE_ERROR', 500);
+      }
+
+      let emailPreview, meetingPreview;
+      if (isEmail) {
+        emailPreview = {
+          ...parsed,
+          status: 'preview'
+        };
+      } else {
+        meetingPreview = {
+          ...parsed,
+          status: 'preview'
+        };
+      }
+
+      const defaultReply = isEmail
+        ? "I've prepared an email based on your request. Review it below. You can edit any field manually or ask me to refine it before sending."
+        : "I've prepared the meeting details. Review or edit them below before scheduling.";
+
+      const assistantReply = parsed.assistantMessage || defaultReply;
+
+      const messageId = await saveAssistantMessage(sessionId, userId, assistantReply, undefined, emailPreview, meetingPreview);
+
+      const newConvSummary = (state.conversationSummary || '') + `\nUser: ${prompt}\nSystem: ${assistantReply}\n`;
+      await saveSessionMetadata(sessionId, userId, {
+        conversationSummary: newConvSummary.slice(-2000),
+        lastConversationAt: new Date().toISOString(),
+      });
+
+      return secureHeaders(NextResponse.json({
+        id: messageId,
+        content: assistantReply,
+        category: classification.category,
+        artifactsModified: [],
+        emailPreview,
+        meetingPreview
+      }));
     } else {
       // ── Modification Required ──
       // 1. Impact Analysis
@@ -170,7 +272,16 @@ export async function POST(req: Request) {
         );
       }
 
-      // 3. Update Session State
+      // 3. Compute dirty integrations based on dependency map
+      const githubDirtyArtifacts = INTEGRATION_DEPENDENCY_MAP.github.filter((a: ArtifactType) => modifiedArtifacts.includes(a));
+      const jiraDirtyArtifacts = INTEGRATION_DEPENDENCY_MAP.jira.filter((a: ArtifactType) => modifiedArtifacts.includes(a));
+      const notionDirtyArtifacts = INTEGRATION_DEPENDENCY_MAP.notion.filter((a: ArtifactType) => modifiedArtifacts.includes(a));
+
+      const isGithubDirty = githubDirtyArtifacts.length > 0;
+      const isJiraDirty = jiraDirtyArtifacts.length > 0;
+      const isNotionDirty = notionDirtyArtifacts.length > 0;
+
+      // Update Session State
       await saveSessionMetadata(sessionId, userId, {
         totalTokensUsed: state.totalTokensUsed + tokensUsed,
         lastConversationAt: new Date().toISOString(),
@@ -178,7 +289,16 @@ export async function POST(req: Request) {
           github: !!state.githubUrl,
           notion: !!state.notionUrl,
           jira: !!state.jiraUrl
-        }
+        },
+        // Only set dirty if the platform was already exported
+        githubDirty: isGithubDirty && state.githubExported ? true : state.githubDirty,
+        githubDirtyArtifacts: isGithubDirty && state.githubExported ? [...(state.githubDirtyArtifacts || []), ...githubDirtyArtifacts] : state.githubDirtyArtifacts,
+
+        jiraDirty: isJiraDirty && state.jiraExported ? true : state.jiraDirty,
+        jiraDirtyArtifacts: isJiraDirty && state.jiraExported ? [...(state.jiraDirtyArtifacts || []), ...jiraDirtyArtifacts] : state.jiraDirtyArtifacts,
+
+        notionDirty: isNotionDirty && state.notionExported ? true : state.notionDirty,
+        notionDirtyArtifacts: isNotionDirty && state.notionExported ? [...(state.notionDirtyArtifacts || []), ...notionDirtyArtifacts] : state.notionDirtyArtifacts,
       });
 
       // 4. Charge tokens

@@ -6,7 +6,6 @@ import { getOrCreateProjectState } from '@/lib/pipeline/ArtifactController';
 import { exportToNotion } from '@/lib/notion/exporter';
 import { exportToGithub } from '@/lib/github/exporter';
 import { exportToJira } from '@/lib/jira/exporter';
-
 export async function POST(req: Request) {
   try {
     const { userId } = await auth();
@@ -44,7 +43,9 @@ export async function POST(req: Request) {
         githubData.accessToken,
         githubData.repoVisibility === 'private',
         logSummary,
-        (msg: string) => firestoreService.saveEvent(sessionId, { type: 'EXPORT_PROGRESS', source: 'github', message: msg })
+        (msg: string) => firestoreService.saveEvent(sessionId, { type: 'EXPORT_PROGRESS', source: 'github', message: msg }),
+        state.githubRepository,
+        state.githubDirtyArtifacts
       );
 
       if (exportData) {
@@ -52,7 +53,11 @@ export async function POST(req: Request) {
         await firestoreService.saveSessionMetadata(sessionId, userId, {
           githubUrl: exportData.githubUrl,
           githubRepository: exportData.githubRepository,
-          githubExportStatus: 'SUCCESS'
+          githubExportStatus: 'SUCCESS',
+          githubExported: true,
+          githubDirty: false,
+          lastGitHubSync: new Date().toISOString(),
+          githubDirtyArtifacts: []
         });
       } else {
         await firestoreService.saveEvent(sessionId, { type: 'EXPORT_FAILED', source: 'github', message: 'GitHub export failed', durationMs: Date.now() - githubStartT });
@@ -74,7 +79,9 @@ export async function POST(req: Request) {
         title,
         userId,
         logSummary,
-        (msg: string) => firestoreService.saveEvent(sessionId, { type: 'EXPORT_PROGRESS', source: 'jira', message: msg })
+        (msg: string) => firestoreService.saveEvent(sessionId, { type: 'EXPORT_PROGRESS', source: 'jira', message: msg }),
+        state.jiraProjectKey,
+        state.jiraDirtyArtifacts
       );
 
       if (exportData) {
@@ -82,7 +89,11 @@ export async function POST(req: Request) {
         await firestoreService.saveSessionMetadata(sessionId, userId, {
           jiraUrl: exportData.jiraUrl,
           jiraProjectKey: exportData.jiraProjectKey,
-          jiraExportStatus: 'SUCCESS'
+          jiraExportStatus: 'SUCCESS',
+          jiraExported: true,
+          jiraDirty: false,
+          lastJiraSync: new Date().toISOString(),
+          jiraDirtyArtifacts: []
         });
       } else {
         await firestoreService.saveEvent(sessionId, { type: 'EXPORT_FAILED', source: 'jira', message: 'Jira export failed', durationMs: Date.now() - jiraStartT });
@@ -106,7 +117,9 @@ export async function POST(req: Request) {
           notionData.accessToken,
           notionData.defaultParentPageId,
           logSummary,
-          (msg: string) => firestoreService.saveEvent(sessionId, { type: 'EXPORT_PROGRESS', source: 'notion', message: msg })
+          (msg: string) => firestoreService.saveEvent(sessionId, { type: 'EXPORT_PROGRESS', source: 'notion', message: msg }),
+          state.notionPageId,
+          state.notionDirtyArtifacts
         );
 
         if (exportData) {
@@ -114,7 +127,11 @@ export async function POST(req: Request) {
           await firestoreService.saveSessionMetadata(sessionId, userId, {
             notionUrl: exportData.notionUrl,
             notionPageId: exportData.notionPageId,
-            exportStatus: 'SUCCESS'
+            exportStatus: 'SUCCESS',
+            notionExported: true,
+            notionDirty: false,
+            lastNotionSync: new Date().toISOString(),
+            notionDirtyArtifacts: []
           });
         } else {
           throw new Error('Notion export returned null');

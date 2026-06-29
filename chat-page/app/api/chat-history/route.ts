@@ -81,8 +81,26 @@ export async function GET(req: Request) {
       exportStatus: sessionData?.exportStatus,
       githubUrl: sessionData?.githubUrl,
       githubExportStatus: sessionData?.githubExportStatus,
+      jiraUrl: sessionData?.jiraUrl,
+      jiraExportStatus: sessionData?.jiraExportStatus,
       conversationMode: sessionData?.conversationMode,
       pendingIntegrationUpdates: sessionData?.pendingIntegrationUpdates,
+
+      // Sync states
+      githubExported: sessionData?.githubExported,
+      githubDirty: sessionData?.githubDirty,
+      lastGitHubSync: sessionData?.lastGitHubSync,
+      githubDirtyArtifacts: sessionData?.githubDirtyArtifacts,
+
+      jiraExported: sessionData?.jiraExported,
+      jiraDirty: sessionData?.jiraDirty,
+      lastJiraSync: sessionData?.lastJiraSync,
+      jiraDirtyArtifacts: sessionData?.jiraDirtyArtifacts,
+
+      notionExported: sessionData?.notionExported,
+      notionDirty: sessionData?.notionDirty,
+      lastNotionSync: sessionData?.lastNotionSync,
+      notionDirtyArtifacts: sessionData?.notionDirtyArtifacts,
     });
   } catch (error) {
     console.error("Failed to load chat history:", error);

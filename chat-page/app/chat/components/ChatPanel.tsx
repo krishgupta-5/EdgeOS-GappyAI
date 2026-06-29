@@ -17,7 +17,9 @@ import FileContentRenderer from "@/app/chat/components/FileContentRenderer";
 import FileHeader from "@/app/chat/components/FileHeader";
 import InputArea from "@/app/chat/components/InputArea";
 import FinalSummaryCard from "@/app/chat/components/FinalSummaryCard";
-import type { ProgressEvent } from "@/lib/pipeline/types";
+import EmailPreviewCard from "@/app/chat/components/EmailPreviewCard";
+import MeetingPreviewCard from "@/app/chat/components/MeetingPreviewCard";
+import type { ProgressEvent, EmailPreview, MeetingPreview } from "@/lib/pipeline/types";
 
 // ── ProdMate Design Tokens (ProdMate Minimal Palette) ──────────
 const T = {
@@ -52,6 +54,8 @@ export interface Message {
   githubExportStatus?: string;
   jiraUrl?: string;
   jiraExportStatus?: string;
+  emailPreview?: EmailPreview;
+  meetingPreview?: MeetingPreview;
 }
 
 const initialMessages: Message[] = [];
@@ -492,11 +496,11 @@ export default function ChatPanel({
                 const { file, options } = buildAssistantMessage(step, latestResult, false);
                 historyMessages.push({ id: msg.id, role: "assistant", content: msg.content, timestamp: ts, file, options });
               } else {
-                historyMessages.push({ id: msg.id, role: "assistant", content: msg.content, timestamp: ts });
+                historyMessages.push({ id: msg.id, role: "assistant", content: msg.content, timestamp: ts, emailPreview: msg.emailPreview, meetingPreview: msg.meetingPreview });
               }
             }
           } else {
-            historyMessages.push({ id: msg.id, role: "assistant", content: msg.content, timestamp: ts });
+            historyMessages.push({ id: msg.id, role: "assistant", content: msg.content, timestamp: ts, emailPreview: msg.emailPreview, meetingPreview: msg.meetingPreview });
           }
         }
         
@@ -524,9 +528,7 @@ export default function ChatPanel({
           if (Object.keys(latestResult).length > 0) { 
             setGeneratedData(latestResult); 
             setHasGeneratedConfig(true); 
-            if (latestResult.finalMarkdown) {
-              setConversationMode(true);
-            }
+            setConversationMode(true);
           }
           
           const isAwaitingAssistant = historyMessages.length > 0 && historyMessages[historyMessages.length - 1].role === 'user';
@@ -610,8 +612,11 @@ export default function ChatPanel({
     if (!overrideInput && textareaRef.current) textareaRef.current.style.height = "auto";
     setModifyMode(false); setModifyTargetArtifact(null);
     try {
-      const endpoint = conversationMode ? "/api/chat" : "/api/generate";
-      const payload = conversationMode 
+      const isExplicitRequest = !!forceArtifact || (modifyMode && !!modifyTargetArtifact);
+      // We also want to use chat if they've generated a config (i.e. conversationMode is effectively true for free text)
+      const useChat = (conversationMode || hasGeneratedConfig) && !isExplicitRequest;
+      const endpoint = useChat ? "/api/chat" : "/api/generate";
+      const payload = useChat 
         ? { prompt: textToSend, sessionId: currentSessionId, history: chatHistory }
         : { prompt: textToSend, sessionId: currentSessionId, artifact, mode: isModify ? "modify" : "generate" };
 
@@ -636,12 +641,25 @@ export default function ChatPanel({
       
       if (conversationMode) {
         // Conversational Mode Response (Groq + Gemini if modified)
-        setMessages(prev => [...prev, { 
-          id: (Date.now() + 1).toString(), 
-          role: "assistant", 
-          content: data.content, 
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        }]);
+        setMessages(prev => {
+          // If the new message has a preview, remove previous previews to maintain a single draft
+          let updatedPrev = prev;
+          if (data.emailPreview || data.meetingPreview) {
+            updatedPrev = prev.map(m => {
+              if (m.emailPreview?.status === 'preview' && data.emailPreview) return { ...m, emailPreview: undefined };
+              if (m.meetingPreview?.status === 'preview' && data.meetingPreview) return { ...m, meetingPreview: undefined };
+              return m;
+            });
+          }
+          return [...updatedPrev, { 
+            id: data.id || (Date.now() + 1).toString(), 
+            role: "assistant", 
+            content: data.content, 
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            emailPreview: data.emailPreview,
+            meetingPreview: data.meetingPreview
+          }];
+        });
         
         // If artifacts were modified, they are updated in the backend, but we don't fetch them all again right away.
         // The SSE events would have fired, or we could just trigger a reload of history.
@@ -684,6 +702,73 @@ export default function ChatPanel({
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: `Error: ${err instanceof Error ? err.message : "Execution failed."}`, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
     } finally { setIsTyping(false); setGeneratingArtifact(null); }
   };
+  const handleSendEmail = async (emailPreview: EmailPreview, messageId: string) => {
+    if (!sessionId) return;
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, emailPreview: { ...emailPreview, status: 'sending' } } : m));
+    try {
+      const res = await fetch("/api/action/gmail/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, emailPreview, messageId }),
+      });
+      if (res.ok) {
+        setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, emailPreview: { ...emailPreview, status: 'sent', sentAt: new Date().toISOString() } } : m));
+      } else {
+        const error = await res.json();
+        setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, emailPreview: { ...emailPreview, status: 'preview' } } : m));
+        setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: `Failed to send email: ${error.error || 'Unknown error'}`, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
+      }
+    } catch (err) {
+      console.error(err);
+      setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, emailPreview: { ...emailPreview, status: 'preview' } } : m));
+      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: "Failed to send email.", timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
+    }
+  };
+
+  const handleScheduleMeeting = async (meetingPreview: MeetingPreview, messageId: string) => {
+    if (!sessionId) return;
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, meetingPreview: { ...meetingPreview, status: 'scheduling' } } : m));
+    try {
+      const res = await fetch("/api/action/calendar/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, meetingPreview, messageId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, meetingPreview: { ...meetingPreview, status: 'scheduled', scheduledAt: new Date().toISOString(), meetLink: data.meetLink } } : m));
+      } else {
+        const error = await res.json();
+        setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, meetingPreview: { ...meetingPreview, status: 'preview' } } : m));
+        setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: `Failed to schedule meeting: ${error.error || 'Unknown error'}`, timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
+      }
+    } catch (err) {
+      console.error(err);
+      setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, meetingPreview: { ...meetingPreview, status: 'preview' } } : m));
+      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: "Failed to schedule meeting.", timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) }]);
+    }
+  };
+
+  const handleCancelAction = (msgId: string, type: 'email' | 'meeting') => {
+    setMessages(prev => prev.map(m => {
+      if (m.id === msgId) {
+        if (type === 'email' && m.emailPreview) {
+          return { ...m, emailPreview: { ...m.emailPreview, status: 'cancelled' } };
+        } else if (type === 'meeting' && m.meetingPreview) {
+          return { ...m, meetingPreview: { ...m.meetingPreview, status: 'cancelled' } };
+        }
+      }
+      return m;
+    }));
+  };
+
+  const handleRefine = (prompt: string, currentState: any) => {
+    const isMeeting = 'guests' in currentState;
+    const contextStr = JSON.stringify(currentState);
+    const draftType = isMeeting ? "Meeting" : "Email";
+    handleSend(`${prompt}\n\n[System Context: Current ${draftType} Draft: ${contextStr}]`);
+  };
+
 
   const handleOptionClick = (label: string) => {
     const artifact = OPTION_TO_ARTIFACT[label.toLowerCase()] ?? "markdown";
@@ -792,7 +877,7 @@ export default function ChatPanel({
                     color: T.text,
                     marginBottom: "12px",
                   }}>
-                    What are you building today?
+                    {hasGeneratedConfig ? "Ask anything about your project" : "What are you building today?"}
                   </h1>
                   <p style={{
                     fontSize: "14px",
@@ -801,7 +886,9 @@ export default function ChatPanel({
                     margin: "0",
                     fontFamily: T.font,
                   }}>
-                    Describe your software idea and ProdMate will generate product requirements, roadmaps, user stories, API designs, database schemas, architecture plans and technical documentation.
+                    {hasGeneratedConfig 
+                      ? "Use ProdMate AI to write emails, schedule meetings, update roadmaps, and modify your product documentation."
+                      : "Describe your software idea and ProdMate will generate product requirements, roadmaps, user stories, API designs, database schemas, architecture plans and technical documentation."}
                   </p>
                 </div>
 
@@ -812,42 +899,78 @@ export default function ChatPanel({
                   gap: "12px",
                   marginBottom: "48px"
                 }}>
-                  <TemplateCard
-                    title="AI SaaS Platform"
-                    desc="Generate complete planning for an AI-powered SaaS application."
-                    icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>}
-                    prompt="Build an AI SaaS platform where users can upload documents, chat with AI, manage workspaces and collaborate with teams. Generate a complete Product Requirement Document, User Stories, Product Roadmap, API Design, Database Schema, System Architecture, Folder Structure, Testing Plan, Deployment Guide and Technical Documentation."
-                    delay="0.1s"
-                    onClick={handleSuggestionClick}
-                  />
-                  <TemplateCard
-                    title="E-Commerce Marketplace"
-                    desc="Plan a scalable marketplace with products, orders and payments."
-                    icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>}
-                    prompt="Build an e-commerce marketplace similar to Amazon with authentication, products, inventory, shopping cart, orders, payments and seller dashboard. Generate complete planning documents including PRD, User Stories, Roadmap, APIs, Database Schema, Architecture and Deployment Guide."
-                    delay="0.15s"
-                    onClick={handleSuggestionClick}
-                  />
-                  <TemplateCard
-                    title="Social Media Platform"
-                    desc="Design a modern social network with feeds and messaging."
-                    icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>}
-                    prompt="Build a social media platform similar to Instagram with authentication, profiles, posts, comments, likes, followers, messaging and notifications. Generate complete planning artifacts including PRD, Roadmap, APIs, Database Schema and Architecture."
-                    delay="0.2s"
-                    onClick={handleSuggestionClick}
-                  />
-                  <TemplateCard
-                    title="Hospital Management System"
-                    desc="Generate planning for a complete healthcare management platform."
-                    icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>}
-                    prompt="Build a hospital management system with patients, doctors, appointments, pharmacy, billing and reports. Generate Product Requirements, User Stories, Roadmap, API Design, Database Schema, Folder Structure, System Architecture, Testing Plan and Deployment Guide."
-                    delay="0.25s"
-                    onClick={handleSuggestionClick}
-                  />
+                  {hasGeneratedConfig ? (
+                    <>
+                      <TemplateCard
+                        title="Write an email"
+                        desc="Draft emails to clients or team members based on project status."
+                        icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>}
+                        prompt="Write an email to my client with a project update."
+                        delay="0.1s"
+                        onClick={handleSuggestionClick}
+                      />
+                      <TemplateCard
+                        title="Schedule a meeting"
+                        desc="Schedule Google Meet calls with your team or stakeholders."
+                        icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>}
+                        prompt="Schedule a 30 minute sprint review meeting for tomorrow."
+                        delay="0.15s"
+                        onClick={handleSuggestionClick}
+                      />
+                      <TemplateCard
+                        title="Update roadmap"
+                        desc="Modify the project timeline, add milestones or adjust phases."
+                        icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>}
+                        prompt="Update the roadmap to include a new phase for AI integration."
+                        delay="0.2s"
+                        onClick={handleSuggestionClick}
+                      />
+                      <TemplateCard
+                        title="Modify database"
+                        desc="Update the database schema with new tables or relationships."
+                        icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>}
+                        prompt="Modify the database schema to add user profiles and avatars."
+                        delay="0.25s"
+                        onClick={handleSuggestionClick}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <TemplateCard
+                        title="AI SaaS Platform"
+                        desc="Generate complete planning for an AI-powered SaaS application."
+                        icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>}
+                        prompt="Build an AI SaaS platform where users can upload documents, chat with AI, manage workspaces and collaborate with teams. Generate a complete Product Requirement Document, User Stories, Product Roadmap, API Design, Database Schema, System Architecture, Folder Structure, Testing Plan, Deployment Guide and Technical Documentation."
+                        delay="0.1s"
+                        onClick={handleSuggestionClick}
+                      />
+                      <TemplateCard
+                        title="E-Commerce Marketplace"
+                        desc="Plan a scalable marketplace with products, orders and payments."
+                        icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>}
+                        prompt="Build an e-commerce marketplace similar to Amazon with authentication, products, inventory, shopping cart, orders, payments and seller dashboard. Generate complete planning documents including PRD, User Stories, Roadmap, APIs, Database Schema, Architecture and Deployment Guide."
+                        delay="0.15s"
+                        onClick={handleSuggestionClick}
+                      />
+                      <TemplateCard
+                        title="Social Media Platform"
+                        desc="Design a modern social network with feeds and messaging."
+                        icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>}
+                        prompt="Build a social media platform similar to Instagram with authentication, profiles, posts, comments, likes, followers, messaging and notifications. Generate complete planning artifacts including PRD, Roadmap, APIs, Database Schema and Architecture."
+                        delay="0.2s"
+                        onClick={handleSuggestionClick}
+                      />
+                      <TemplateCard
+                        title="Hospital Management System"
+                        desc="Generate planning for a complete healthcare management platform."
+                        icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>}
+                        prompt="Build a hospital management system with patients, doctors, appointments, pharmacy, billing and reports. Generate Product Requirements, User Stories, Roadmap, API Design, Database Schema, Folder Structure, System Architecture, Testing Plan and Deployment Guide."
+                        delay="0.25s"
+                        onClick={handleSuggestionClick}
+                      />
+                    </>
+                  )}
                 </div>
-
-
-
               </div>
             </div>
 
@@ -900,7 +1023,7 @@ export default function ChatPanel({
 
                     {/* Message body */}
                     <div style={{ width: "100%", color: "rgba(255,255,255,0.85)", fontSize: "14px", lineHeight: "1.6", whiteSpace: "pre-line", fontFamily: T.font }}>
-                      {msg.content}
+                      {msg.content.replace(/\n\n\[System Context:[\s\S]*?\]/, '').replace(/\n\nCurrent Draft:\n[\s\S]*/, '')}
 
                       {/* File artifact card */}
                       {msg.file && (
@@ -923,6 +1046,27 @@ export default function ChatPanel({
                             </div>
                           )}
                         </div>
+                      )}
+
+                      {/* Conversational AI Actions */}
+                      {msg.emailPreview && (
+                        <EmailPreviewCard 
+                          email={msg.emailPreview} 
+                          onSend={(updated) => handleSendEmail(updated, msg.id)}
+                          onCancel={() => handleCancelAction(msg.id, 'email')}
+                          onRefine={handleRefine}
+                          isSending={msg.emailPreview.status === 'sending'}
+                        />
+                      )}
+
+                      {msg.meetingPreview && (
+                        <MeetingPreviewCard 
+                          meeting={msg.meetingPreview} 
+                          onSchedule={(updated) => handleScheduleMeeting(updated, msg.id)}
+                          onCancel={() => handleCancelAction(msg.id, 'meeting')}
+                          onRefine={handleRefine}
+                          isScheduling={msg.meetingPreview.status === 'scheduling'}
+                        />
                       )}
                     </div>
 
@@ -1065,6 +1209,7 @@ export default function ChatPanel({
                     handleKeyDown={handleKeyDown}
                     handleSend={handleSend}
                     isTyping={isTyping || isExporting}
+                    hasGeneratedConfig={hasGeneratedConfig}
                   />
                 </>
               )}
