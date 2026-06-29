@@ -716,6 +716,9 @@ export async function exportToNotion(
           children: firstChunk
         }));
 
+        // Track for stable IDs
+        existingChildrenMap[childPageTitle] = childPage.id;
+
         let remaining = allBlocks.slice(100);
         while (remaining.length > 0) {
           const chunk = remaining.slice(0, 100);
@@ -736,8 +739,21 @@ export async function exportToNotion(
     logSummary.Notion = 'SUCCESS';
     onProgress?.('Documentation exported.');
 
-    return { notionPageId: parentId, notionUrl: parentUrl };
-  } catch (err) {
+    // We still have the updated existingChildrenMap containing titles mapped to IDs.
+    // If a new page was created, it overwrote the entry in existingChildrenMap.
+    const notionPages = { ...existingChildrenMap };
+    
+    return { 
+      notionPageId: parentId, 
+      notionUrl: parentUrl,
+      notionRootPageId: rootPageId,
+      notionParentPageId: parentId,
+      notionPages
+    };
+  } catch (err: any) {
+    if (err.status === 401 || err.code === 'unauthorized' || (err.message && err.message.includes('401'))) {
+       throw new Error('AUTH_ERROR');
+    }
     console.error(`[NOTION] Export Failed:`, err);
     logSummary.Notion = 'FAILED';
     return null;

@@ -96,6 +96,9 @@ export default function FinalSummaryCard({ events, githubUrl, notionUrl, jiraUrl
 
   const handleAction = async (platform: 'github' | 'jira' | 'notion' | 'calendar' | 'gmail', extraData?: any) => {
     if (!integrationData[platform]) {
+      if (sessionId) {
+        sessionStorage.setItem('pendingSyncSessionId', sessionId);
+      }
       router.push('/integrations');
       return;
     }
@@ -134,6 +137,17 @@ export default function FinalSummaryCard({ events, githubUrl, notionUrl, jiraUrl
     }
   };
 
+  const handleUpdateAll = async () => {
+    const dirtyPlatforms: ('github' | 'jira' | 'notion' | 'calendar' | 'gmail')[] = [];
+    if (syncStates.githubDirty && integrationData.github) dirtyPlatforms.push('github');
+    if (syncStates.jiraDirty && integrationData.jira) dirtyPlatforms.push('jira');
+    if (syncStates.notionDirty && integrationData.notion) dirtyPlatforms.push('notion');
+
+    for (const platform of dirtyPlatforms) {
+      await handleAction(platform);
+    }
+  };
+
   const renderOptionButton = (platform: 'github' | 'jira' | 'notion' | 'calendar' | 'gmail', label: string, isIntegrated: boolean) => {
     if (!isIntegrated) {
       return (
@@ -168,7 +182,10 @@ export default function FinalSummaryCard({ events, githubUrl, notionUrl, jiraUrl
               onMouseLeave={e => { if (!loading[platform]) { e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)"; } }}>
               {loading[platform] ? "Updating..." : `⚠ Update ${label}`}
             </button>
-            <span style={{ fontSize: '10px', color: T.textHint, textAlign: 'center' }}>
+            <span 
+              title={dirtyArtifacts.length > 0 ? `Changed: ${dirtyArtifacts.join(', ')}` : ''}
+              style={{ fontSize: '10px', color: T.textHint, textAlign: 'center', cursor: 'help' }}
+            >
               {dirtyArtifacts.length} out of sync
             </span>
           </div>
@@ -288,6 +305,19 @@ export default function FinalSummaryCard({ events, githubUrl, notionUrl, jiraUrl
           {renderOptionButton('github', 'GitHub', integrationData.github)}
           {renderOptionButton('jira', 'Jira', integrationData.jira)}
           {renderOptionButton('notion', 'Notion', integrationData.notion)}
+          
+          {(syncStates.githubDirty || syncStates.jiraDirty || syncStates.notionDirty) && (
+            <button onClick={handleUpdateAll} disabled={Object.values(loading).some(Boolean)}
+              style={{
+                marginLeft: "8px", padding: "6px 12px", background: T.accent, color: T.bg, border: `1px solid ${T.accent}`,
+                fontSize: "12px", fontFamily: T.font, cursor: Object.values(loading).some(Boolean) ? "not-allowed" : "pointer", transition: "all .15s", borderRadius: "6px",
+                opacity: Object.values(loading).some(Boolean) ? 0.5 : 1, fontWeight: 600
+              }}
+              onMouseEnter={e => { if (!Object.values(loading).some(Boolean)) e.currentTarget.style.opacity = "0.85"; }}
+              onMouseLeave={e => { if (!Object.values(loading).some(Boolean)) e.currentTarget.style.opacity = "1"; }}>
+              {Object.values(loading).some(Boolean) ? "Updating..." : "Update All"}
+            </button>
+          )}
         </div>
 
       </div>

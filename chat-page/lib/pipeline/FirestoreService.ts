@@ -121,17 +121,23 @@ export async function loadProjectState(
       githubExported: sessionData.githubExported,
       githubDirty: sessionData.githubDirty,
       lastGitHubSync: sessionData.lastGitHubSync,
-      githubDirtyArtifacts: sessionData.githubDirtyArtifacts,
+      githubRepositoryId: sessionData.githubRepositoryId,
+      githubOwner: sessionData.githubOwner,
+      githubDefaultBranch: sessionData.githubDefaultBranch,
+      githubLastCommitSha: sessionData.githubLastCommitSha,
 
       jiraExported: sessionData.jiraExported,
       jiraDirty: sessionData.jiraDirty,
       lastJiraSync: sessionData.lastJiraSync,
-      jiraDirtyArtifacts: sessionData.jiraDirtyArtifacts,
+      jiraProjectId: sessionData.jiraProjectId,
+      jiraIssues: sessionData.jiraIssues,
 
       notionExported: sessionData.notionExported,
       notionDirty: sessionData.notionDirty,
       lastNotionSync: sessionData.lastNotionSync,
-      notionDirtyArtifacts: sessionData.notionDirtyArtifacts,
+      notionRootPageId: sessionData.notionRootPageId,
+      notionParentPageId: sessionData.notionParentPageId,
+      notionPages: sessionData.notionPages,
     };
   } catch (err) {
     console.error(
@@ -290,17 +296,23 @@ export async function saveSessionMetadata(
     githubExported?: boolean;
     githubDirty?: boolean;
     lastGitHubSync?: string;
-    githubDirtyArtifacts?: string[];
+    githubRepositoryId?: string;
+    githubOwner?: string;
+    githubDefaultBranch?: string;
+    githubLastCommitSha?: string;
 
     jiraExported?: boolean;
     jiraDirty?: boolean;
     lastJiraSync?: string;
-    jiraDirtyArtifacts?: string[];
+    jiraProjectId?: string;
+    jiraIssues?: Record<string, { issueId: string; issueKey: string; summary: string; type: string }>;
 
     notionExported?: boolean;
     notionDirty?: boolean;
     lastNotionSync?: string;
-    notionDirtyArtifacts?: string[];
+    notionRootPageId?: string;
+    notionParentPageId?: string;
+    notionPages?: Record<string, string>;
 
     pendingIntegrationUpdates?: {
       github: boolean;
@@ -337,17 +349,23 @@ export async function saveSessionMetadata(
   if (data.githubExported !== undefined) docData.githubExported = data.githubExported;
   if (data.githubDirty !== undefined) docData.githubDirty = data.githubDirty;
   if (data.lastGitHubSync) docData.lastGitHubSync = data.lastGitHubSync;
-  if (data.githubDirtyArtifacts) docData.githubDirtyArtifacts = data.githubDirtyArtifacts;
+  if (data.githubRepositoryId) docData.githubRepositoryId = data.githubRepositoryId;
+  if (data.githubOwner) docData.githubOwner = data.githubOwner;
+  if (data.githubDefaultBranch) docData.githubDefaultBranch = data.githubDefaultBranch;
+  if (data.githubLastCommitSha) docData.githubLastCommitSha = data.githubLastCommitSha;
 
   if (data.jiraExported !== undefined) docData.jiraExported = data.jiraExported;
   if (data.jiraDirty !== undefined) docData.jiraDirty = data.jiraDirty;
   if (data.lastJiraSync) docData.lastJiraSync = data.lastJiraSync;
-  if (data.jiraDirtyArtifacts) docData.jiraDirtyArtifacts = data.jiraDirtyArtifacts;
+  if (data.jiraProjectId) docData.jiraProjectId = data.jiraProjectId;
+  if (data.jiraIssues) docData.jiraIssues = data.jiraIssues;
 
   if (data.notionExported !== undefined) docData.notionExported = data.notionExported;
   if (data.notionDirty !== undefined) docData.notionDirty = data.notionDirty;
   if (data.lastNotionSync) docData.lastNotionSync = data.lastNotionSync;
-  if (data.notionDirtyArtifacts) docData.notionDirtyArtifacts = data.notionDirtyArtifacts;
+  if (data.notionRootPageId) docData.notionRootPageId = data.notionRootPageId;
+  if (data.notionParentPageId) docData.notionParentPageId = data.notionParentPageId;
+  if (data.notionPages) docData.notionPages = data.notionPages;
 
   await db
     .collection('sessions')

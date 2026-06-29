@@ -74,7 +74,7 @@ export async function GET(req: Request) {
     
     const sessionData = sessionSnapshot.exists ? sessionSnapshot.data() : {};
 
-    return NextResponse.json({ 
+    const responsePayload = { 
       messages, 
       artifacts, 
       notionUrl: sessionData?.notionUrl, 
@@ -90,18 +90,53 @@ export async function GET(req: Request) {
       githubExported: sessionData?.githubExported,
       githubDirty: sessionData?.githubDirty,
       lastGitHubSync: sessionData?.lastGitHubSync,
-      githubDirtyArtifacts: sessionData?.githubDirtyArtifacts,
 
       jiraExported: sessionData?.jiraExported,
       jiraDirty: sessionData?.jiraDirty,
       lastJiraSync: sessionData?.lastJiraSync,
-      jiraDirtyArtifacts: sessionData?.jiraDirtyArtifacts,
 
       notionExported: sessionData?.notionExported,
       notionDirty: sessionData?.notionDirty,
       lastNotionSync: sessionData?.lastNotionSync,
-      notionDirtyArtifacts: sessionData?.notionDirtyArtifacts,
-    });
+    };
+
+    // Calculate dirty artifacts dynamically based on ARTIFACT_DEPENDENCY_MAP and last sync time
+    const ARTIFACT_DEPENDENCY_MAP: Record<string, string[]> = {
+      config: ['github'],
+      markdown: ['github', 'notion'],
+      folderStructure: ['github'],
+      apiDesign: ['github', 'notion'],
+      db: ['github', 'notion'],
+      docker: ['github'],
+      deploymentGuide: ['github', 'notion'],
+      testingPlan: ['github', 'notion'],
+      userStories: ['jira', 'notion'],
+      roadmap: ['jira', 'notion'],
+      projectTimeline: ['jira', 'notion'],
+      costEstimation: ['notion'],
+      riskAnalysis: ['notion'],
+      finalMarkdown: ['github', 'notion']
+    };
+
+    const computeDirty = (platform: string, lastSyncStr?: string) => {
+      const dirty: string[] = [];
+      const lastSync = new Date(lastSyncStr || 0).getTime();
+      if (lastSync === 0) return dirty;
+
+      for (const [aType, artifact] of Object.entries(artifacts)) {
+        if ((ARTIFACT_DEPENDENCY_MAP[aType] || []).includes(platform)) {
+           const genAt = new Date(artifact.metadata?.generatedAt || 0).getTime();
+           if (genAt > lastSync) dirty.push(aType);
+        }
+      }
+      return dirty;
+    };
+
+    (responsePayload as any).githubDirtyArtifacts = computeDirty('github', sessionData?.lastGitHubSync);
+    (responsePayload as any).jiraDirtyArtifacts = computeDirty('jira', sessionData?.lastJiraSync);
+    (responsePayload as any).notionDirtyArtifacts = computeDirty('notion', sessionData?.lastNotionSync);
+
+    return NextResponse.json(responsePayload);
   } catch (error) {
     console.error("Failed to load chat history:", error);
     return NextResponse.json(

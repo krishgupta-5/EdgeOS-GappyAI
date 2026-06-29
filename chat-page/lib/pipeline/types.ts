@@ -23,10 +23,21 @@ export type ArtifactType =
   | 'riskAnalysis'
   | 'finalMarkdown';
 
-export const INTEGRATION_DEPENDENCY_MAP: Record<string, ArtifactType[]> = {
-  github: ['config', 'markdown', 'db', 'apiDesign', 'folderStructure', 'docker', 'testingPlan', 'userStories', 'roadmap', 'deploymentGuide', 'costEstimation', 'projectTimeline', 'riskAnalysis', 'finalMarkdown'],
-  jira: ['userStories'],
-  notion: ['config', 'markdown', 'db', 'apiDesign', 'folderStructure', 'docker', 'testingPlan', 'userStories', 'roadmap', 'deploymentGuide', 'costEstimation', 'projectTimeline', 'riskAnalysis', 'finalMarkdown'],
+export const ARTIFACT_DEPENDENCY_MAP: Record<ArtifactType, string[]> = {
+  config: ["github"],
+  markdown: ["github", "notion"],
+  folderStructure: ["github"],
+  apiDesign: ["github", "notion"],
+  db: ["github", "notion"],
+  docker: ["github"],
+  deploymentGuide: ["github", "notion"],
+  testingPlan: ["github", "notion"],
+  userStories: ["jira", "notion"],
+  roadmap: ["jira", "notion"],
+  projectTimeline: ["jira", "notion"],
+  riskAnalysis: ["jira", "notion"],
+  costEstimation: ["jira", "notion"],
+  finalMarkdown: ["github", "notion"]
 };
 
 /** Frontend-facing artifact type includes "initial" (config+markdown combo) */
@@ -211,17 +222,23 @@ export interface ProjectState {
   githubExported?: boolean;
   githubDirty?: boolean;
   lastGitHubSync?: string;
-  githubDirtyArtifacts?: string[];
+  githubRepositoryId?: string;
+  githubOwner?: string;
+  githubDefaultBranch?: string;
+  githubLastCommitSha?: string;
 
   jiraExported?: boolean;
   jiraDirty?: boolean;
   lastJiraSync?: string;
-  jiraDirtyArtifacts?: string[];
+  jiraProjectId?: string;
+  jiraIssues?: Record<string, { issueId: string; issueKey: string; summary: string; type: string }>;
 
   notionExported?: boolean;
   notionDirty?: boolean;
   lastNotionSync?: string;
-  notionDirtyArtifacts?: string[];
+  notionRootPageId?: string;
+  notionParentPageId?: string;
+  notionPages?: Record<string, string>;
 
   calendarExportStatus?: 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED';
   calendarEventsCreated?: number;
