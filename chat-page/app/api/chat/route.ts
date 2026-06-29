@@ -10,7 +10,7 @@ import { classifyRequest } from '@/lib/chat/RequestClassifier';
 import { analyzeImpact } from '@/lib/chat/ImpactAnalysis';
 import { modifyArtifact } from '@/lib/pipeline/ArtifactController';
 import { callGroqRaw, createCallConfig } from '@/lib/pipeline/GroqClient';
-import { type ArtifactType, INTEGRATION_DEPENDENCY_MAP } from '@/lib/pipeline/types';
+import { type ArtifactType, ARTIFACT_DEPENDENCY_MAP } from '@/lib/pipeline/types';
 
 
 
@@ -273,13 +273,15 @@ Format:
       }
 
       // 3. Compute dirty integrations based on dependency map
-      const githubDirtyArtifacts = INTEGRATION_DEPENDENCY_MAP.github.filter((a: ArtifactType) => modifiedArtifacts.includes(a));
-      const jiraDirtyArtifacts = INTEGRATION_DEPENDENCY_MAP.jira.filter((a: ArtifactType) => modifiedArtifacts.includes(a));
-      const notionDirtyArtifacts = INTEGRATION_DEPENDENCY_MAP.notion.filter((a: ArtifactType) => modifiedArtifacts.includes(a));
+      const dirtyIntegrations = new Set<string>();
+      modifiedArtifacts.forEach((artifact) => {
+        const dependentIntegrations = ARTIFACT_DEPENDENCY_MAP[artifact as ArtifactType] || [];
+        dependentIntegrations.forEach((integration) => dirtyIntegrations.add(integration));
+      });
 
-      const isGithubDirty = githubDirtyArtifacts.length > 0;
-      const isJiraDirty = jiraDirtyArtifacts.length > 0;
-      const isNotionDirty = notionDirtyArtifacts.length > 0;
+      const isGithubDirty = dirtyIntegrations.has('github');
+      const isJiraDirty = dirtyIntegrations.has('jira');
+      const isNotionDirty = dirtyIntegrations.has('notion');
 
       // Update Session State
       await saveSessionMetadata(sessionId, userId, {
@@ -292,13 +294,8 @@ Format:
         },
         // Only set dirty if the platform was already exported
         githubDirty: isGithubDirty && state.githubExported ? true : state.githubDirty,
-        githubDirtyArtifacts: isGithubDirty && state.githubExported ? [...(state.githubDirtyArtifacts || []), ...githubDirtyArtifacts] : state.githubDirtyArtifacts,
-
         jiraDirty: isJiraDirty && state.jiraExported ? true : state.jiraDirty,
-        jiraDirtyArtifacts: isJiraDirty && state.jiraExported ? [...(state.jiraDirtyArtifacts || []), ...jiraDirtyArtifacts] : state.jiraDirtyArtifacts,
-
         notionDirty: isNotionDirty && state.notionExported ? true : state.notionDirty,
-        notionDirtyArtifacts: isNotionDirty && state.notionExported ? [...(state.notionDirtyArtifacts || []), ...notionDirtyArtifacts] : state.notionDirtyArtifacts,
       });
 
       // 4. Charge tokens

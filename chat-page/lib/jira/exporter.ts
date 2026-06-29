@@ -70,6 +70,9 @@ export async function exportToJira(
     if (currentUser.displayName) console.log(`[JIRA] Authenticated user displayName: ${currentUser.displayName}`);
     if (currentUser.emailAddress) console.log(`[JIRA] Authenticated user emailAddress: ${currentUser.emailAddress}`);
   } catch (err: any) {
+    if (err.message && err.message.includes('401')) {
+       throw new Error('AUTH_ERROR');
+    }
     console.error(`[JIRA] Verification failed. Could not fetch /myself. Export Failed.`);
     logSummary.Jira = 'FAILED';
     return null;
@@ -87,7 +90,8 @@ export async function exportToJira(
       createdProject = await client.request('GET', `/project/${existingProjectKey}`);
       projectId = createdProject.id;
       console.log(`[JIRA] Using existing project: ${existingProjectKey}`);
-    } catch (err) {
+    } catch (err: any) {
+      if (err.message && err.message.includes('401')) throw new Error('AUTH_ERROR');
       console.error(`[JIRA] Failed to fetch existing project ${existingProjectKey}`, err);
       logSummary.Jira = 'FAILED';
       return null;
@@ -103,6 +107,7 @@ export async function exportToJira(
         console.log(`[JIRA] Project Created: ${projectKey}`);
         break;
       } catch (err: any) {
+        if (err.message && err.message.includes('401')) throw new Error('AUTH_ERROR');
         if (err.message && err.message.includes('400') && i < 10) { // Bad request often means key collision
           projectKey = generateProjectKey(title) + i;
         } else {
@@ -122,7 +127,8 @@ export async function exportToJira(
           projectKey = createdProject.key;
           console.log(`[JIRA] Fallback successful. Using existing project: ${projectKey}`);
         }
-      } catch (e) {
+      } catch (e: any) {
+        if (e.message && e.message.includes('401')) throw new Error('AUTH_ERROR');
         console.error(`[JIRA] Failed to fetch existing projects for fallback.`, e);
       }
     }
@@ -135,41 +141,36 @@ export async function exportToJira(
   }
 
   // Sync User Stories
+  const jiraIssues = { ...(state.jiraIssues || {}) };
   if (state.artifacts.userStories?.content) {
     onProgress?.('Syncing user stories...');
     const stories = parseUserStories(state.artifacts.userStories.content);
     
-    // Fetch existing issues to avoid duplicates
-    let existingIssues: any[] = [];
-    try {
-      const searchRes = await client.searchIssues(`project="${projectKey}"`);
-      if (searchRes && searchRes.issues) existingIssues = searchRes.issues;
-    } catch (e) {
-      console.warn('[JIRA] Could not fetch existing issues, proceeding without deduplication.');
-    }
-
-    for (const story of stories) {
-      // Find matching issue by summary (exact match or prefix)
-      const existing = existingIssues.find(iss => 
-        iss.fields?.summary?.toLowerCase() === story.title.toLowerCase() || 
-        story.title.toLowerCase().includes(iss.fields?.summary?.toLowerCase())
-      );
+    for (let i = 0; i < stories.length; i++) {
+      const story = stories[i];
+      const storyId = `story-${i}`;
+      const existing = jiraIssues[storyId];
 
       try {
         if (existing) {
-          await client.updateIssue(existing.id, story.title, story.description || 'No description provided');
-          console.log(`[JIRA] Updated issue: ${existing.key}`);
+          await client.updateIssue(existing.issueId, story.title, story.description || 'No description provided');
+          console.log(`[JIRA] Updated issue: ${existing.issueKey}`);
         } else {
-          await client.createIssue(projectKey, story.title.substring(0, 255), story.description || 'No description provided');
-          console.log(`[JIRA] Created new issue: ${story.title.substring(0, 50)}...`);
+          const res = await client.createIssue(projectKey, story.title.substring(0, 255), story.description || 'No description provided');
+          console.log(`[JIRA] Created new issue: ${res.key}`);
+          jiraIssues[storyId] = {
+             issueId: res.id,
+             issueKey: res.key,
+             summary: story.title,
+             type: 'Story'
+          };
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err.message && err.message.includes('401')) throw new Error('AUTH_ERROR');
         console.error(`[JIRA] Failed to sync issue: ${story.title}`, err);
       }
     }
   }
-
-
 
   const duration = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log(`[JIRA] Export Completed (${duration}s)`);
@@ -179,7 +180,9 @@ export async function exportToJira(
   const jiraUrl = createdProject.self?.split('/rest/api')[0] + `/browse/${projectKey}`;
 
   return {
+    jiraProjectId: projectId,
     jiraProjectKey: projectKey,
     jiraUrl: jiraUrl,
+    jiraIssues
   };
 }

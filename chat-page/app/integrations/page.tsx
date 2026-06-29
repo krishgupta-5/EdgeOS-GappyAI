@@ -329,7 +329,7 @@ export default function IntegrationsPanel() {
   const fetchData = () => {
     setLoadingIntegrations(true);
     setError(false);
-    Promise.all([
+    return Promise.all([
       fetch("/api/notion/pages").then((res) => { if (!res.ok) throw new Error(); return res.json(); }),
       fetch("/api/integrations").then((res) => { if (!res.ok) throw new Error(); return res.json(); })
     ]).then(([notionPages, allIntegrations]) => {
@@ -367,7 +367,15 @@ export default function IntegrationsPanel() {
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData().then(() => {
+      // Check for pending session to redirect after OAuth
+      const pendingSessionId = sessionStorage.getItem('pendingSyncSessionId');
+      if (pendingSessionId) {
+        // Redirect back to chat page with the session
+        sessionStorage.removeItem('pendingSyncSessionId');
+        router.push(`/chat?sessionId=${pendingSessionId}`);
+      }
+    });
   }, []);
 
   const handleMouseDown = (e: React.MouseEvent) => {

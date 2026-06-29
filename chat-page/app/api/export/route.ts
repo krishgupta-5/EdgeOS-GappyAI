@@ -28,6 +28,26 @@ export async function POST(req: Request) {
     const logSummary: any = {};
     let exportData: any = null;
 
+    // Dynamically compute dirty artifacts
+    let lastSyncDate = new Date(0);
+    if (platform === 'github' && state.lastGitHubSync) lastSyncDate = new Date(state.lastGitHubSync);
+    else if (platform === 'jira' && state.lastJiraSync) lastSyncDate = new Date(state.lastJiraSync);
+    else if (platform === 'notion' && state.lastNotionSync) lastSyncDate = new Date(state.lastNotionSync);
+
+    const dirtyArtifacts: string[] = [];
+    if (state.artifacts) {
+      for (const [aType, artifact] of Object.entries(state.artifacts)) {
+        // Safe check for artifacts since we just imported types
+        const deps = (await import('@/lib/pipeline/types')).ARTIFACT_DEPENDENCY_MAP[aType as import('@/lib/pipeline/types').ArtifactType] || [];
+        if (deps.includes(platform)) {
+          const generatedAt = new Date((artifact as any).metadata?.generatedAt || 0);
+          if (generatedAt > lastSyncDate || lastSyncDate.getTime() === 0) {
+            dirtyArtifacts.push(aType);
+          }
+        }
+      }
+    }
+
     if (platform === 'github') {
       const githubData = userData?.github;
       if (!githubData || !githubData.accessToken) {
@@ -37,31 +57,43 @@ export async function POST(req: Request) {
       const githubStartT = Date.now();
       await firestoreService.saveEvent(sessionId, { type: 'EXPORT_STARTED', source: 'github', message: 'Creating GitHub repository...' });
       
-      exportData = await exportToGithub(
-        state,
-        title,
-        githubData.accessToken,
-        githubData.repoVisibility === 'private',
-        logSummary,
-        (msg: string) => firestoreService.saveEvent(sessionId, { type: 'EXPORT_PROGRESS', source: 'github', message: msg }),
-        state.githubRepository,
-        state.githubDirtyArtifacts
-      );
+      try {
+        exportData = await exportToGithub(
+          state,
+          title,
+          githubData.accessToken,
+          githubData.repoVisibility === 'private',
+          logSummary,
+          (msg: string) => firestoreService.saveEvent(sessionId, { type: 'EXPORT_PROGRESS', source: 'github', message: msg }),
+          state.githubRepository,
+          dirtyArtifacts
+        );
 
-      if (exportData) {
-        await firestoreService.saveEvent(sessionId, { type: 'EXPORT_COMPLETED', source: 'github', message: 'GitHub export complete', durationMs: Date.now() - githubStartT });
-        await firestoreService.saveSessionMetadata(sessionId, userId, {
-          githubUrl: exportData.githubUrl,
-          githubRepository: exportData.githubRepository,
-          githubExportStatus: 'SUCCESS',
-          githubExported: true,
-          githubDirty: false,
-          lastGitHubSync: new Date().toISOString(),
-          githubDirtyArtifacts: []
-        });
-      } else {
+        if (exportData) {
+          await firestoreService.saveEvent(sessionId, { type: 'EXPORT_COMPLETED', source: 'github', message: 'GitHub export complete', durationMs: Date.now() - githubStartT });
+          await firestoreService.saveSessionMetadata(sessionId, userId, {
+            githubUrl: exportData.githubUrl,
+            githubRepository: exportData.githubRepository,
+            githubRepositoryId: exportData.githubRepositoryId,
+            githubOwner: exportData.githubOwner,
+            githubDefaultBranch: exportData.githubDefaultBranch,
+            githubLastCommitSha: exportData.githubLastCommitSha,
+            githubExportStatus: 'SUCCESS',
+            githubExported: true,
+            githubDirty: false,
+            lastGitHubSync: new Date().toISOString()
+          });
+        } else {
+          throw new Error('GitHub export returned null');
+        }
+      } catch (err: any) {
         await firestoreService.saveEvent(sessionId, { type: 'EXPORT_FAILED', source: 'github', message: 'GitHub export failed', durationMs: Date.now() - githubStartT });
         await firestoreService.saveSessionMetadata(sessionId, userId, { githubExportStatus: 'FAILED' });
+        
+        if (err.message === 'AUTH_ERROR') {
+          await userRef.set({ github: { accessToken: null, updatedAt: new Date().toISOString() } }, { merge: true });
+          return NextResponse.json({ error: 'GitHub authentication expired. Please reconnect.', authError: true }, { status: 401 });
+        }
         return NextResponse.json({ error: 'GitHub export failed' }, { status: 500 });
       }
     } 
@@ -74,30 +106,40 @@ export async function POST(req: Request) {
       const jiraStartT = Date.now();
       await firestoreService.saveEvent(sessionId, { type: 'EXPORT_STARTED', source: 'jira', message: 'Creating Jira project...' });
 
-      exportData = await exportToJira(
-        state,
-        title,
-        userId,
-        logSummary,
-        (msg: string) => firestoreService.saveEvent(sessionId, { type: 'EXPORT_PROGRESS', source: 'jira', message: msg }),
-        state.jiraProjectKey,
-        state.jiraDirtyArtifacts
-      );
+      try {
+        exportData = await exportToJira(
+          state,
+          title,
+          userId,
+          logSummary,
+          (msg: string) => firestoreService.saveEvent(sessionId, { type: 'EXPORT_PROGRESS', source: 'jira', message: msg }),
+          state.jiraProjectKey,
+          dirtyArtifacts
+        );
 
-      if (exportData) {
-        await firestoreService.saveEvent(sessionId, { type: 'EXPORT_COMPLETED', source: 'jira', message: 'Jira export complete', durationMs: Date.now() - jiraStartT });
-        await firestoreService.saveSessionMetadata(sessionId, userId, {
-          jiraUrl: exportData.jiraUrl,
-          jiraProjectKey: exportData.jiraProjectKey,
-          jiraExportStatus: 'SUCCESS',
-          jiraExported: true,
-          jiraDirty: false,
-          lastJiraSync: new Date().toISOString(),
-          jiraDirtyArtifacts: []
-        });
-      } else {
+        if (exportData) {
+          await firestoreService.saveEvent(sessionId, { type: 'EXPORT_COMPLETED', source: 'jira', message: 'Jira export complete', durationMs: Date.now() - jiraStartT });
+          await firestoreService.saveSessionMetadata(sessionId, userId, {
+            jiraUrl: exportData.jiraUrl,
+            jiraProjectKey: exportData.jiraProjectKey,
+            jiraProjectId: exportData.jiraProjectId,
+            jiraIssues: exportData.jiraIssues,
+            jiraExportStatus: 'SUCCESS',
+            jiraExported: true,
+            jiraDirty: false,
+            lastJiraSync: new Date().toISOString()
+          });
+        } else {
+          throw new Error('Jira export returned null');
+        }
+      } catch (err: any) {
         await firestoreService.saveEvent(sessionId, { type: 'EXPORT_FAILED', source: 'jira', message: 'Jira export failed', durationMs: Date.now() - jiraStartT });
         await firestoreService.saveSessionMetadata(sessionId, userId, { jiraExportStatus: 'FAILED' });
+        
+        if (err.message === 'AUTH_ERROR') {
+          await userRef.set({ jira: { accessToken: null, updatedAt: new Date().toISOString() } }, { merge: true });
+          return NextResponse.json({ error: 'Jira authentication expired. Please reconnect.', authError: true }, { status: 401 });
+        }
         return NextResponse.json({ error: 'Jira export failed' }, { status: 500 });
       }
     }
@@ -119,7 +161,7 @@ export async function POST(req: Request) {
           logSummary,
           (msg: string) => firestoreService.saveEvent(sessionId, { type: 'EXPORT_PROGRESS', source: 'notion', message: msg }),
           state.notionPageId,
-          state.notionDirtyArtifacts
+          dirtyArtifacts
         );
 
         if (exportData) {
@@ -127,11 +169,13 @@ export async function POST(req: Request) {
           await firestoreService.saveSessionMetadata(sessionId, userId, {
             notionUrl: exportData.notionUrl,
             notionPageId: exportData.notionPageId,
+            notionRootPageId: exportData.notionRootPageId,
+            notionParentPageId: exportData.notionParentPageId,
+            notionPages: exportData.notionPages,
             exportStatus: 'SUCCESS',
             notionExported: true,
             notionDirty: false,
-            lastNotionSync: new Date().toISOString(),
-            notionDirtyArtifacts: []
+            lastNotionSync: new Date().toISOString()
           });
         } else {
           throw new Error('Notion export returned null');
@@ -140,6 +184,11 @@ export async function POST(req: Request) {
         await firestoreService.saveEvent(sessionId, { type: 'EXPORT_FAILED', source: 'notion', message: 'Notion export failed', durationMs: Date.now() - notionStartT });
         await firestoreService.saveSessionMetadata(sessionId, userId, { exportStatus: 'FAILED' });
         
+        if (err.message === 'AUTH_ERROR') {
+          await userRef.set({ notion: { accessToken: null, updatedAt: new Date().toISOString() } }, { merge: true });
+          return NextResponse.json({ error: 'Notion authentication expired. Please reconnect.', authError: true }, { status: 401 });
+        }
+
         if (err.message === 'PARENT_PAGE_NOT_FOUND') {
           await userRef.set({
             notion: { defaultParentPageId: null, updatedAt: new Date().toISOString() }
