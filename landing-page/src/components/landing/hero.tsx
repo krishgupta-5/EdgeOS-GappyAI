@@ -4,6 +4,7 @@ import Link from "next/link";
 import Container from "../global/container";
 import { Button } from "../ui/button";
 import { Cover } from "../ui/cover";
+import { CHAT_URL } from "@/constants";
 
 const Hero = () => {
     return (
@@ -52,7 +53,7 @@ const Hero = () => {
                 <div className="flex flex-col items-center justify-center mt-10 space-y-4 sm:flex-row sm:space-y-0 sm:space-x-4">
 
                     <Button asChild size="lg" className="rounded-full h-12 px-8 text-base shadow-[0_0_40px_rgba(134,120,249,0.3)] group transition-all duration-300 hover:shadow-[0_0_60px_rgba(134,120,249,0.4)] hover:-translate-y-0.5">
-                        <Link href="https://chat.krishgupta.dev/">
+                        <Link href={CHAT_URL}>
                             <Sparkles className="w-4 h-4 mr-2" />
                             Start Planning
                         </Link>

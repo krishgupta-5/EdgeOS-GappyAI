@@ -9,6 +9,7 @@ import React, { useEffect, useState } from 'react';
 import Icons from "../global/icons";
 import Wrapper from "../global/wrapper";
 import { Button } from "../ui/button";
+import { CHAT_URL } from "@/constants/links";
 
 // ----------------------------------------------------------------------
 // DESKTOP MENU (SIMPLE LINKS, NO POPUPS)
@@ -122,8 +123,7 @@ const MobileMenu = ({ isOpen, setIsOpen }: MobileMenuProps) => {
                             variant="white"
                             className="w-full rounded-full py-6 text-lg"
                             onClick={() => {
-                                const chatUrl = `${window.location.protocol}//${window.location.hostname}:3001`;
-                                window.location.href = chatUrl;
+                                window.location.href = CHAT_URL;
                                 setIsOpen(false);
                             }}
                         >
@@ -184,8 +184,7 @@ const Navbar = () => {
                             <Button
                                 variant="white"
                                 onClick={() => {
-                                    const chatUrl = `${window.location.protocol}//${window.location.hostname}:3001`;
-                                    window.location.href = chatUrl;
+                                    window.location.href = CHAT_URL;
                                 }}
                                 className="hidden sm:flex group rounded-full px-6 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:-translate-y-0.5"
                             >

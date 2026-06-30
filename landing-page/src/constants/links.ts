@@ -76,3 +76,5 @@ export const FOOTER_LINKS = [
         ],
     },
 ];
+
+export const CHAT_URL = "https://chat.prodmate.dev/";

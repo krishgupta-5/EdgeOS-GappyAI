@@ -3,7 +3,7 @@ import { inter, satoshi } from "./fonts";
 import { PERKS } from "./perks";
 import { PLANS } from "./plans";
 import { REVIEWS } from "./reviews";
-import { FOOTER_LINKS } from "./links";
+import { FOOTER_LINKS, CHAT_URL } from "./links";
 import { LIST_ITEM_VARIANTS, CHILD_VARIANTS, FADE_IN_VARIANTS, MODAL_VARIANTS } from "./animation";
 
 export {
@@ -20,4 +20,5 @@ export {
     PLANS,
     REVIEWS,
     FOOTER_LINKS,
+    CHAT_URL,
 };

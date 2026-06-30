@@ -14,6 +14,7 @@ import {
 } from "react-icons/si";
 import { IconType } from "react-icons";
 import { cn } from "@/functions";
+import { CHAT_URL } from "@/constants";
 
 const integrations: { name: string; icon: IconType; color: string }[] = [
     { name: "Gmail", icon: SiGmail, color: "#EA4335" },
@@ -49,8 +50,7 @@ const Integrations = () => {
                                 variant="ghost"
                                 className="group flex items-center gap-2 hover:bg-transparent text-white px-2 py-0 h-auto"
                                 onClick={() => {
-                                    const chatUrl = `${window.location.protocol}//${window.location.hostname}:3000/integrations`;
-                                    window.location.href = chatUrl;
+                                    window.location.href = `${CHAT_URL}integrations`;
                                 }}
                             >
                                 View All Integrations

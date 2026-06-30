@@ -3,6 +3,7 @@ import Container from "../global/container";
 import { Button } from "../ui/button";
 import { Particles } from "../ui/particles";
 import RetroGrid from "../ui/retro-grid";
+import { CHAT_URL } from "@/constants";
 
 const CTA = () => {
     return (
@@ -26,7 +27,7 @@ const CTA = () => {
 
                         <div className="flex flex-col md:flex-row items-center justify-center w-full gap-6 mt-8">
                             <Button asChild size="lg" className="w-full md:w-max">
-                                <Link href="https://chat.krishgupta.dev/">
+                                <Link href={CHAT_URL}>
                                     Start for Free
                                 </Link>
                             </Button>

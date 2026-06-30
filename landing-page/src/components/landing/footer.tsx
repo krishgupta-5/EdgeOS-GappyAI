@@ -1,4 +1,4 @@
-import { FOOTER_LINKS } from "@/constants";
+import { FOOTER_LINKS, CHAT_URL } from "@/constants";
 import Link from "next/link";
 import Container from "../global/container";
 import Icons from "../global/icons";
@@ -36,7 +36,7 @@ const Footer = () => {
                         </p>
 
                         <Button className="mt-6">
-                            <Link href="https://chat.krishgupta.dev/">
+                            <Link href={CHAT_URL}>
                                 Start Planning Free
                             </Link>
                         </Button>

@@ -6,6 +6,7 @@ import Link from "next/link";
 import Container from "../global/container";
 import { Button } from "../ui/button";
 import { SectionBadge } from "../ui/section-bade";
+import { CHAT_URL } from "@/constants/links";
 
 const PLANS = [
     {
@@ -172,7 +173,7 @@ const Plan = ({
                             variant={isStarter ? "default" : "secondary"}
                             className="w-full hover:scale-100 hover:translate-y-0 shadow-none"
                         >
-                            <Link href="https://chat.krishgupta.dev/">
+                            <Link href={CHAT_URL}>
                                 {isStarter ? "Start for Free" : "Upgrade"}
                             </Link>
                         </Button>
