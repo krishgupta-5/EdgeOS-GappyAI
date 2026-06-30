@@ -122,7 +122,7 @@ const MobileMenu = ({ isOpen, setIsOpen }: MobileMenuProps) => {
                             variant="white"
                             className="w-full rounded-full py-6 text-lg"
                             onClick={() => {
-                                const chatUrl = `${window.location.protocol}//${window.location.hostname}:3000`;
+                                const chatUrl = `${window.location.protocol}//${window.location.hostname}:3001`;
                                 window.location.href = chatUrl;
                                 setIsOpen(false);
                             }}
@@ -184,7 +184,7 @@ const Navbar = () => {
                             <Button
                                 variant="white"
                                 onClick={() => {
-                                    const chatUrl = `${window.location.protocol}//${window.location.hostname}:3000`;
+                                    const chatUrl = `${window.location.protocol}//${window.location.hostname}:3001`;
                                     window.location.href = chatUrl;
                                 }}
                                 className="hidden sm:flex group rounded-full px-6 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:-translate-y-0.5"
