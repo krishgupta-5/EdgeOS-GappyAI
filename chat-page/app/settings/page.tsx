@@ -178,6 +178,9 @@ export default function SettingsPage() {
               <Link href="/privacy" style={{ color: "inherit", textDecoration: "none", transition: "color 0.2s" }} onMouseEnter={(e) => (e.currentTarget.style.color = T.text)} onMouseLeave={(e) => (e.currentTarget.style.color = T.textMuted)}>
                 Privacy Policy
               </Link>
+              <Link href="/cookies" style={{ color: "inherit", textDecoration: "none", transition: "color 0.2s" }} onMouseEnter={(e) => (e.currentTarget.style.color = T.text)} onMouseLeave={(e) => (e.currentTarget.style.color = T.textMuted)}>
+                Cookie Policy
+              </Link>
             </div>
           </aside>
 

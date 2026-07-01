@@ -19,6 +19,8 @@ export default function MagicCard({
     children,
     particles = false,
     count = 20,
+    className,
+    ...props
 }: Props) {
     const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         const { currentTarget } = e;
@@ -31,7 +33,7 @@ export default function MagicCard({
     };
 
     return (
-        <div className="card rounded-xl lg:rounded-2xl overflow-hidden" onMouseMove={onMouseMove}>
+        <div className={cn("card rounded-xl lg:rounded-2xl overflow-hidden", className)} onMouseMove={onMouseMove} {...props}>
             <div className="content">
                 {particles && (
                     <Particles

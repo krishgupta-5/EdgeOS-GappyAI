@@ -44,37 +44,33 @@ export const SIDEBAR_LINKS: Link[] = [
     },
 ];
 
+export const CHAT_URL = "https://chat.prodmate.dev/";
+
 export const FOOTER_LINKS = [
     {
         title: "Product",
         links: [
             { name: "Home", href: "/" },
-            { name: "Features", href: "/" },
-            { name: "Pricing", href: "/" },
-            { name: "Contact", href: "/" },
+            { name: "Features", href: "/#features" },
+            { name: "Pricing", href: "/#pricing" },
+            { name: "Contact", href: "mailto:krishgupta0072@gmail.com" },
         ],
     },
     {
         title: "Resources",
         links: [
             { name: "Docs", href: "/docs" },
-            { name: "Get Started", href: "/docs/get-started" },
-            { name: "Integrations", href: "/docs/examples" },
-            { name: "Blog", href: "/blog" },
-            { name: "Help Center", href: "/help-center" },
-            { name: "Community", href: "/community" },
-            { name: "Guides", href: "/guides" },
-            { name: "Changelog", href: "/changelog" },
+            { name: "Get Started", href: "/docs#getting-started" },
+            { name: "Integrations", href: `${CHAT_URL}integrations` },
         ],
     },
     {
         title: "Legal",
         links: [
-            { name: "Privacy", href: "/privacy" },
-            { name: "Terms", href: "/terms" },
-            { name: "Cookies", href: "/cookies" },
+            { name: "Privacy", href: `${CHAT_URL}privacy` },
+            { name: "Terms", href: `${CHAT_URL}terms` },
+            { name: "Cookies", href: `${CHAT_URL}cookies` },
         ],
     },
 ];
 
-export const CHAT_URL = "https://chat.prodmate.dev/";

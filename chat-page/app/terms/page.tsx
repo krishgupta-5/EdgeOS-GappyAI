@@ -291,6 +291,12 @@ export default function TermsOfService() {
             onMouseLeave={e => e.currentTarget.style.color = T.textHint}>
             Privacy Policy
           </Link>
+          <span>&bull;</span>
+          <Link href="/cookies" style={{ color: "inherit", textDecoration: "none", transition: "color 0.15s" }}
+            onMouseEnter={e => e.currentTarget.style.color = T.text}
+            onMouseLeave={e => e.currentTarget.style.color = T.textHint}>
+            Cookie Policy
+          </Link>
         </div>
       </div>
 

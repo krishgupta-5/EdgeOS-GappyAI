@@ -17,14 +17,14 @@ const T = {
   font: "var(--font-inter), system-ui, -apple-system, sans-serif",
 };
 
-export default function PrivacyPolicy() {
+export default function CookiePolicy() {
   const router = useRouter();
   const [activeSection, setActiveSection] = useState("introduction");
   const isClickScrolling = useRef(false);
 
   // Reliable Scroll Spy for the Index
   useEffect(() => {
-    const sections = ["introduction", "information", "security", "contact"];
+    const sections = ["introduction", "usage", "types", "managing", "contact"];
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -58,6 +58,14 @@ export default function PrivacyPolicy() {
       isClickScrolling.current = false;
     }, 800);
   };
+
+  const sectionsList = [
+    { id: "introduction", label: "1. Introduction" },
+    { id: "usage", label: "2. How We Use Cookies" },
+    { id: "types", label: "3. Types of Cookies" },
+    { id: "managing", label: "4. Managing Cookies" },
+    { id: "contact", label: "5. Contact Details" }
+  ];
 
   return (
     <div
@@ -111,7 +119,7 @@ export default function PrivacyPolicy() {
 
           <div>
             <h1 style={{ fontSize: "22px", fontWeight: 600, color: T.text, margin: "0 0 4px 0", letterSpacing: "-0.01em" }}>
-              Privacy Policy
+              Cookie Policy
             </h1>
             <p style={{ color: T.textHint, fontSize: "13px", margin: 0 }}>
               Last updated: June 27, 2026
@@ -140,17 +148,12 @@ export default function PrivacyPolicy() {
                 position: "absolute", left: 0, right: 0, height: "35px",
                 background: T.surfaceHover, borderRadius: "6px", zIndex: 0,
                 transition: "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-                transform: `translateY(${activeSection === "introduction" ? 0 :
-                    activeSection === "information" ? 37 :
-                      activeSection === "security" ? 74 :
-                        activeSection === "contact" ? 111 : 0
-                  }px)`
+                transform: `translateY(${Math.max(0, sectionsList.findIndex(s => s.id === activeSection)) * 37}px)`
               }} />
 
-              <NavButton active={activeSection === "introduction"} onClick={() => scrollTo("introduction")} label="1. Introduction" />
-              <NavButton active={activeSection === "information"} onClick={() => scrollTo("information")} label="2. Information Collected" />
-              <NavButton active={activeSection === "security"} onClick={() => scrollTo("security")} label="3. Data Security" />
-              <NavButton active={activeSection === "contact"} onClick={() => scrollTo("contact")} label="4. Contact Details" />
+              {sectionsList.map(item => (
+                <NavButton key={item.id} active={activeSection === item.id} onClick={() => scrollTo(item.id)} label={item.label} />
+              ))}
             </div>
           </aside>
 
@@ -165,24 +168,32 @@ export default function PrivacyPolicy() {
 
             <div id="introduction">
               <PolicySection title="1. Introduction">
-                ProdMate ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our developer platform and AI services.
+                This Cookie Policy explains how ProdMate ("we," "our," or "us") uses cookies and similar tracking technologies when you access our developer platform and AI workspace. By using our service, you consent to the use of cookies as described in this policy.
               </PolicySection>
             </div>
 
             <div style={{ height: "1px", width: "100%", background: T.border }} />
 
-            <div id="information">
-              <PolicySection title="2. Information We Collect">
-                We collect information through two primary channels to ensure optimal performance and security of our workspace environment:
+            <div id="usage">
+              <PolicySection title="2. How We Use Cookies">
+                We use cookies to maintain secure user authentication, remember your workspace preferences, ensure session continuity, and monitor system performance. Cookies allow us to deliver a fast, reliable, and personalized AI development environment without compromising security.
+              </PolicySection>
+            </div>
+
+            <div style={{ height: "1px", width: "100%", background: T.border }} />
+
+            <div id="types">
+              <PolicySection title="3. Types of Cookies We Use">
+                Our platform relies on three distinct categories of cookies:
                 <ul style={{ paddingLeft: "16px", margin: "16px 0 0 0", display: "flex", flexDirection: "column", gap: "12px" }}>
                   <li>
-                    <strong style={{ color: T.text, fontWeight: 500 }}>Account & Identity:</strong> Email, name, and necessary registration details to establish your workspace and prevent unauthorized access.
+                    <strong style={{ color: T.text, fontWeight: 500 }}>Essential Cookies:</strong> Required for authentication and core security. These tokens keep you signed in securely via Clerk and protect your workspace against unauthorized requests.
                   </li>
                   <li>
-                    <strong style={{ color: T.text, fontWeight: 500 }}>Telemetry & Quotas:</strong> Interactions with AI assistants strictly to manage compute resources, token quotas, and system reliability.
+                    <strong style={{ color: T.text, fontWeight: 500 }}>Preference Cookies:</strong> Used to remember your customized settings, UI layouts, theme selections, and active project preferences across sessions.
                   </li>
                   <li>
-                    <strong style={{ color: T.text, fontWeight: 500 }}>Project Artifacts:</strong> The architecture, code, and specifications generated within your private sessions.
+                    <strong style={{ color: T.text, fontWeight: 500 }}>Performance & Telemetry Cookies:</strong> Help us measure API latency, token quota consumption, and resource utilization to maintain system reliability and prevent downtime.
                   </li>
                 </ul>
               </PolicySection>
@@ -190,19 +201,17 @@ export default function PrivacyPolicy() {
 
             <div style={{ height: "1px", width: "100%", background: T.border }} />
 
-            <div id="security">
-              <PolicySection title="3. Data Security & Storage">
-                Your data is protected by industry-standard technical measures. We utilize end-to-end encryption for sensitive data in transit, secure server architectures, and routine access audits.
-                <br /><br />
-                <span style={{ color: T.text, fontWeight: 500 }}>Model Training Policy:</span> Your project data, code snippets, and proprietary architectures are completely isolated. They are <strong style={{ color: T.text }}>never</strong> used to train our generalized AI models without your explicit, opt-in consent.
+            <div id="managing">
+              <PolicySection title="4. Managing Your Cookies">
+                Most web browsers allow you to control or disable cookies through their settings preferences. However, please note that disabling essential authentication cookies will prevent you from logging into your ProdMate workspace or accessing AI services.
               </PolicySection>
             </div>
 
             <div style={{ height: "1px", width: "100%", background: T.border }} />
 
             <div id="contact">
-              <PolicySection title="4. Contact Information">
-                If you have questions regarding your data, GDPR compliance, or wish to exercise your "Right to be Forgotten," our privacy engineering team is available directly at:
+              <PolicySection title="5. Contact Information">
+                If you have any questions or concerns about our use of cookies or tracking technologies, please reach out to our privacy engineering team at:
                 <div style={{
                   marginTop: "16px", padding: "12px 16px", background: "rgba(255,255,255,0.03)",
                   borderRadius: "6px", border: `1px solid ${T.border}`, fontFamily: "Consolas, 'Courier New', monospace",
@@ -231,13 +240,13 @@ export default function PrivacyPolicy() {
             Terms of Service
           </Link>
           <span>&bull;</span>
-          <Link href="/privacy" style={{ color: T.text, textDecoration: "none" }}>
+          <Link href="/privacy" style={{ color: "inherit", textDecoration: "none", transition: "color 0.15s" }}
+            onMouseEnter={e => e.currentTarget.style.color = T.text}
+            onMouseLeave={e => e.currentTarget.style.color = T.textHint}>
             Privacy Policy
           </Link>
           <span>&bull;</span>
-          <Link href="/cookies" style={{ color: "inherit", textDecoration: "none", transition: "color 0.15s" }}
-            onMouseEnter={e => e.currentTarget.style.color = T.text}
-            onMouseLeave={e => e.currentTarget.style.color = T.textHint}>
+          <Link href="/cookies" style={{ color: T.text, textDecoration: "none" }}>
             Cookie Policy
           </Link>
         </div>

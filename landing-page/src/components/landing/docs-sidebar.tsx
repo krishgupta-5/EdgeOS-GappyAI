@@ -14,19 +14,33 @@ export const DOCS_NAV = [
             { name: "Introduction", href: "#introduction" },
             { name: "What is ProdMate?", href: "#what-is-ProdMate" },
             { name: "Who Is It For?", href: "#who-is-it-for" },
+            { name: "Architecture & Security", href: "#architecture-security" },
         ]
     },
     {
-        title: "Platform",
+        title: "Platform & Capabilities",
         items: [
-            { name: "Core Capabilities", href: "#core-capabilities" },
+            { name: "Core Artifacts", href: "#core-capabilities" },
+            { name: "AI Project Assistant", href: "#ai-project-assistant" },
             { name: "How It Works", href: "#how-it-works" },
             { name: "Example Output", href: "#example-output" },
         ]
     },
     {
-        title: "Resources",
+        title: "Integrations & Exporters",
         items: [
+            { name: "Connect Any App (3 Steps)", href: "#quick-start-connect" },
+            { name: "GitHub Repository Push", href: "#github-integration" },
+            { name: "Notion Workspace Sync", href: "#notion-integration" },
+            { name: "Jira Sprint Automation", href: "#jira-integration" },
+            { name: "Gmail Stakeholder Updates", href: "#gmail-integration" },
+            { name: "Google Calendar Scheduling", href: "#calendar-integration" },
+        ]
+    },
+    {
+        title: "Advanced & Setup",
+        items: [
+            { name: "Token Quotas & API Keys", href: "#token-quotas" },
             { name: "Getting Started", href: "#getting-started" },
             { name: "Current Status", href: "#current-status" },
         ]

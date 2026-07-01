@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       attendees: meetingPreview.guests.map((email: string) => ({ email })),
       conferenceData: {
         createRequest: {
-          requestId: `edgeos-${Date.now()}`,
+          requestId: `prodmate-${Date.now()}`,
           conferenceSolutionKey: { type: 'hangoutsMeet' }
         }
       }

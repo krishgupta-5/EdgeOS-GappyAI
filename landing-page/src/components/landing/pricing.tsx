@@ -57,7 +57,7 @@ const PLANS = [
 
 const Pricing = () => {
     return (
-        <div className="flex flex-col items-center justify-center py-12 md:py-16 lg:py-24 w-full relative">
+        <div id="pricing" className="flex flex-col items-center justify-center py-12 md:py-16 lg:py-24 w-full relative scroll-mt-24">
             <Container>
                 <div className="flex flex-col items-center text-center max-w-3xl mx-auto">
                     <SectionBadge title="Pricing" />

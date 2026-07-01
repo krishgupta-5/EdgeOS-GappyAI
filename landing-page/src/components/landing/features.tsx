@@ -17,6 +17,7 @@ import MagicCard from "../ui/magic-card";
 import { Ripple } from "../ui/ripple";
 import { SectionBadge } from "../ui/section-bade";
 import { cn } from "@/functions";
+import { CHAT_URL } from "@/constants/links";
 
 // ----------------------------------------------------------------------
 // HIGH-END VISUAL COMPONENTS
@@ -223,7 +224,7 @@ const DatabaseVisual = () => (
 
 const Features = () => {
     return (
-        <div className="flex flex-col items-center justify-center w-full py-16 md:py-24 lg:py-32 relative overflow-hidden">
+        <div id="features" className="flex flex-col items-center justify-center w-full py-16 md:py-24 lg:py-32 relative overflow-hidden scroll-mt-24">
 
             {/* Ambient Background Blur */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1000px] h-[500px] bg-primary/5 blur-[120px] rounded-[100%] pointer-events-none -z-20"></div>
@@ -247,7 +248,7 @@ const Features = () => {
                     <Container>
                         <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] w-full gap-5 lg:gap-6">
 
-                            <MagicCard particles={true} className="flex flex-col items-start size-full bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 border-white/5">
+                            <MagicCard particles={true} onClick={() => window.location.href = CHAT_URL} className="flex flex-col items-start size-full bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 border-white/5 cursor-pointer">
                                 <div className="relative flex flex-col items-center justify-center w-full h-full overflow-hidden text-center min-h-[340px] group rounded-2xl">
                                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-primary/10 blur-[80px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
 
@@ -271,7 +272,7 @@ const Features = () => {
                                 </div>
                             </MagicCard>
 
-                            <MagicCard particles={true} className="flex flex-col items-start w-full bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 border-white/5">
+                            <MagicCard particles={true} onClick={() => window.location.href = CHAT_URL} className="flex flex-col items-start w-full bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 border-white/5 cursor-pointer">
                                 <div className="flex flex-col w-full h-full rounded-2xl overflow-hidden min-h-[340px] group">
                                     <div className="relative w-full flex-1 bg-black/40 border-b border-white/5 min-h-[180px] overflow-hidden">
                                         <ArchitectureVisual />
@@ -295,7 +296,7 @@ const Features = () => {
                     <Container>
                         <div className="grid grid-cols-1 lg:grid-cols-3 w-full gap-5 lg:gap-6">
 
-                            <MagicCard particles={true} className="flex flex-col items-start w-full row-span-1 bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 border-white/5">
+                            <MagicCard particles={true} onClick={() => window.location.href = CHAT_URL} className="flex flex-col items-start w-full row-span-1 bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 border-white/5 cursor-pointer">
                                 <div className="flex flex-col w-full h-full rounded-2xl overflow-hidden min-h-[420px] group">
                                     <div className="relative w-full flex-1 bg-black/40 border-b border-white/5 min-h-[200px] overflow-hidden">
                                         <RoadmapVisual />
@@ -314,7 +315,7 @@ const Features = () => {
                             {/* CENTER COLUMN (2 Stacked Cards) */}
                             <div className="grid gap-5 grid-rows-2 lg:gap-6 h-full">
 
-                                <MagicCard particles={true} className="flex flex-col items-start w-full bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 h-full border-white/5">
+                                <MagicCard particles={true} onClick={() => window.location.href = CHAT_URL} className="flex flex-col items-start w-full bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 h-full border-white/5 cursor-pointer">
                                     <div className="relative flex items-center justify-center w-full h-full p-8 overflow-hidden rounded-2xl min-h-[200px] group">
                                         <CentralScannerVisual />
                                         <p className="relative z-20 text-sm font-medium leading-relaxed text-center md:text-base text-muted-foreground/90 group-hover:text-white transition-colors duration-500">
@@ -323,7 +324,7 @@ const Features = () => {
                                     </div>
                                 </MagicCard>
 
-                                <MagicCard particles={true} className="flex flex-col items-start w-full bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 h-full border-white/5">
+                                <MagicCard particles={true} onClick={() => window.location.href = CHAT_URL} className="flex flex-col items-start w-full bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 h-full border-white/5 cursor-pointer">
                                     <div className="flex flex-col w-full h-full rounded-2xl overflow-hidden min-h-[200px] group">
                                         <div className="relative w-full flex-1 bg-black/40 border-b border-white/5 min-h-[140px] overflow-hidden">
                                             <RingsVisual />
@@ -342,7 +343,7 @@ const Features = () => {
 
                             </div>
 
-                            <MagicCard particles={true} className="flex flex-col items-start w-full row-span-1 bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 border-white/5">
+                            <MagicCard particles={true} onClick={() => window.location.href = CHAT_URL} className="flex flex-col items-start w-full row-span-1 bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 border-white/5 cursor-pointer">
                                 <div className="flex flex-col w-full h-full rounded-2xl overflow-hidden min-h-[420px] group">
                                     <div className="flex flex-col p-6 lg:p-8 mb-auto bg-[#09090b]/50 backdrop-blur-sm z-10">
                                         <h4 className="text-xl font-medium font-heading heading tracking-tight group-hover:text-primary transition-colors">
@@ -366,7 +367,7 @@ const Features = () => {
                     <Container>
                         <div className="grid grid-cols-1 lg:grid-cols-[0.8fr_1.2fr] w-full gap-5 lg:gap-6">
 
-                            <MagicCard particles={true} className="flex flex-col items-start w-full bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 border-white/5">
+                            <MagicCard particles={true} onClick={() => window.location.href = CHAT_URL} className="flex flex-col items-start w-full bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 border-white/5 cursor-pointer">
                                 <div className="flex flex-col w-full h-full rounded-2xl overflow-hidden min-h-[340px] group">
                                     <div className="relative w-full flex-1 bg-black/40 border-b border-white/5 min-h-[180px] overflow-hidden">
                                         <DocsVisual />
@@ -383,7 +384,7 @@ const Features = () => {
                                 </div>
                             </MagicCard>
 
-                            <MagicCard particles={true} className="flex flex-col items-start w-full bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 border-white/5">
+                            <MagicCard particles={true} onClick={() => window.location.href = CHAT_URL} className="flex flex-col items-start w-full bg-white/[0.02] hover:bg-white/[0.04] transition-colors p-0 border-white/5 cursor-pointer">
                                 <div className="flex flex-col w-full h-full rounded-2xl overflow-hidden min-h-[340px] group">
                                     <div className="relative w-full flex-1 bg-black/40 border-b border-white/5 min-h-[180px] overflow-hidden">
                                         <DatabaseVisual />
