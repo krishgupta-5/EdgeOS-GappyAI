@@ -12,5 +12,7 @@ services:
       context: ./chat-page
     container_name: chat
     restart: unless-stopped
+    env_file:
+      - ./chat-page/.env.prod
     ports:
       - "3001:3000"

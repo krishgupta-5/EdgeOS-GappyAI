@@ -82,9 +82,13 @@ const Hero = () => {
                     <div className="absolute top-1/2 left-1/2 -z-10 w-[80%] -translate-x-1/2 h-[60%] -translate-y-1/2 inset-0 blur-[120px] bg-gradient-to-tr from-primary/30 via-purple-500/20 to-blue-500/30 opacity-70 animate-pulse-slow"></div>
 
                     <div className="p-2 border rounded-[16px] lg:rounded-[32px] border-foreground/10 bg-background/80 shadow-inner">
-                        <div className="w-full aspect-video rounded-[12px] lg:rounded-[24px] border border-foreground/5 bg-gradient-to-br from-primary/20 via-purple-500/20 to-blue-500/20 flex items-center justify-center">
-                            <span className="text-muted-foreground/50 font-medium">Dashboard Interface</span>
-                        </div>
+                        <Image
+                            src="/images/dashboard-interface.png"
+                            alt="Dashboard Interface"
+                            width={1920}
+                            height={1080}
+                            className="w-full aspect-video rounded-[12px] lg:rounded-[24px] border border-foreground/5 object-cover"
+                        />
                     </div>
                 </div>
             </Container>
