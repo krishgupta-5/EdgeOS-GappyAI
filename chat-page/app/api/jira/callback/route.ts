@@ -15,8 +15,10 @@ export async function GET(req: Request) {
   const state = searchParams.get('state');
   const error = searchParams.get('error');
 
+  const appUrl = process.env.JIRA_REDIRECT_URI ? new URL(process.env.JIRA_REDIRECT_URI).origin : new URL(req.url).origin;
+
   if (error) {
-    return NextResponse.redirect(new URL('/integrations?jira_error=access_denied', req.url));
+    return NextResponse.redirect(new URL('/integrations?jira_error=access_denied', appUrl));
   }
 
   if (!code) {
@@ -58,7 +60,7 @@ export async function GET(req: Request) {
 
     if (!tokenRes.ok) {
       console.error('Jira token exchange failed:', await tokenRes.text());
-      return NextResponse.redirect(new URL('/integrations?jira_error=exchange_failed', req.url));
+      return NextResponse.redirect(new URL('/integrations?jira_error=exchange_failed', appUrl));
     }
 
     const data = await tokenRes.json();
@@ -69,7 +71,7 @@ export async function GET(req: Request) {
 
     if (!accessToken) {
       console.error('Jira token exchange returned no access token:', data);
-      return NextResponse.redirect(new URL('/integrations?jira_error=no_token', req.url));
+      return NextResponse.redirect(new URL('/integrations?jira_error=no_token', appUrl));
     }
 
     // Get accessible resources to find the cloudId (Site ID)
@@ -82,16 +84,16 @@ export async function GET(req: Request) {
 
     if (!resourcesRes.ok) {
       console.error('Jira resources fetch failed:', await resourcesRes.text());
-      return NextResponse.redirect(new URL('/integrations?jira_error=resources_fetch_failed', req.url));
+      return NextResponse.redirect(new URL('/integrations?jira_error=resources_fetch_failed', appUrl));
     }
 
     const resources = await resourcesRes.json();
-    
+
     if (!resources || resources.length === 0) {
       console.error('No accessible Jira resources found.');
-      return NextResponse.redirect(new URL('/integrations?jira_error=no_resources', req.url));
+      return NextResponse.redirect(new URL('/integrations?jira_error=no_resources', appUrl));
     }
-    
+
     // Default to the first jira resource
     const jiraResource = resources.find((r: any) => r.scopes.includes('read:jira-work')) || resources[0];
     const cloudId = jiraResource.id;
@@ -105,7 +107,7 @@ export async function GET(req: Request) {
         'Accept': 'application/json',
       }
     });
-    
+
     let accountName = '';
     if (userRes.ok) {
       const userData = await userRes.json();
@@ -129,9 +131,9 @@ export async function GET(req: Request) {
       }
     }, { merge: true });
 
-    return NextResponse.redirect(new URL('/integrations', req.url));
+    return NextResponse.redirect(new URL('/integrations', appUrl));
   } catch (err) {
     console.error('Jira callback error:', err);
-    return NextResponse.redirect(new URL('/integrations?jira_error=unknown', req.url));
+    return NextResponse.redirect(new URL('/integrations?jira_error=unknown', appUrl));
   }
 }

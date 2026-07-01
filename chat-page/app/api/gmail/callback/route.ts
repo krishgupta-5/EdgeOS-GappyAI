@@ -15,8 +15,10 @@ export async function GET(req: Request) {
   const state = searchParams.get('state');
   const error = searchParams.get('error');
 
+  const appUrl = process.env.GOOGLE_GMAIL_REDIRECT_URI ? new URL(process.env.GOOGLE_GMAIL_REDIRECT_URI).origin : new URL(req.url).origin;
+
   if (error) {
-    return NextResponse.redirect(new URL('/integrations?gmail_error=access_denied', req.url));
+    return NextResponse.redirect(new URL('/integrations?gmail_error=access_denied', appUrl));
   }
 
   if (!code) {
@@ -55,7 +57,7 @@ export async function GET(req: Request) {
     if (!tokenRes.ok) {
       const errData = await tokenRes.text();
       console.error('Gmail token exchange error:', errData);
-      return NextResponse.redirect(new URL('/integrations?gmail_error=token_exchange_failed', req.url));
+      return NextResponse.redirect(new URL('/integrations?gmail_error=token_exchange_failed', appUrl));
     }
 
     const tokenData = await tokenRes.json();
@@ -83,8 +85,8 @@ export async function GET(req: Request) {
       }
     }, { merge: true });
 
-    const response = NextResponse.redirect(new URL('/integrations?success=true', req.url));
-    
+    const response = NextResponse.redirect(new URL('/integrations?success=true', appUrl));
+
     // Clear state cookie
     response.cookies.set('gmail_oauth_state', '', {
       httpOnly: true,
@@ -96,6 +98,6 @@ export async function GET(req: Request) {
     return response;
   } catch (err) {
     console.error('Gmail OAuth callback error:', err);
-    return NextResponse.redirect(new URL('/integrations?gmail_error=internal_error', req.url));
+    return NextResponse.redirect(new URL('/integrations?gmail_error=internal_error', appUrl));
   }
 }

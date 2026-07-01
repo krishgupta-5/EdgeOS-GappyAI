@@ -15,8 +15,10 @@ export async function GET(req: Request) {
   const state = searchParams.get('state');
   const error = searchParams.get('error');
 
+  const appUrl = process.env.NOTION_REDIRECT_URI ? new URL(process.env.NOTION_REDIRECT_URI).origin : new URL(req.url).origin;
+
   if (error) {
-    return NextResponse.redirect(new URL('/integrations?notion_error=access_denied', req.url));
+    return NextResponse.redirect(new URL('/integrations?notion_error=access_denied', appUrl));
   }
 
   if (!code) {
@@ -42,7 +44,7 @@ export async function GET(req: Request) {
 
   // Exchange code for token
   const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-  
+
   try {
     const tokenRes = await fetch('https://api.notion.com/v1/oauth/token', {
       method: 'POST',
@@ -60,11 +62,11 @@ export async function GET(req: Request) {
     if (!tokenRes.ok) {
       const err = await tokenRes.text();
       console.error('Notion OAuth token exchange failed:', err);
-      return NextResponse.redirect(new URL('/integrations?notion_error=exchange_failed', req.url));
+      return NextResponse.redirect(new URL('/integrations?notion_error=exchange_failed', appUrl));
     }
 
     const data = await tokenRes.json();
-    
+
     // Save to Firestore
     const ref = db.collection('user_integrations').doc(userId);
     await ref.set({
@@ -80,9 +82,9 @@ export async function GET(req: Request) {
       }
     }, { merge: true });
 
-    return NextResponse.redirect(new URL('/integrations', req.url));
+    return NextResponse.redirect(new URL('/integrations', appUrl));
   } catch (err) {
     console.error('Notion callback error:', err);
-    return NextResponse.redirect(new URL('/integrations?notion_error=unknown', req.url));
+    return NextResponse.redirect(new URL('/integrations?notion_error=unknown', appUrl));
   }
 }
